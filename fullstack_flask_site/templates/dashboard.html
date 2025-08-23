@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="grow-font">Choose Your Reward</h2>
+
+<form method="post" id="rewardForm">
+  <!-- Step 1: Categories -->
+  <div id="step1" class="options-grid">
+    {% for cat, items in options.items() %}
+    <div class="option-box category-card" data-cat="{{ cat }}">
+      <h3 class="grow-font">{{ cat }}</h3>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Step 2: Items -->
+  <div id="step2" class="options-grid" style="display:none;">
+    <h3 id="chosenCat" class="grow-font"></h3>
+    <div id="itemsContainer"></div>
+    <button type="submit" class="btn submit-btn">Submit Request</button>
+  </div>
+</form>
+
+<script>
+  const step1 = document.getElementById("step1");
+  const step2 = document.getElementById("step2");
+  const itemsContainer = document.getElementById("itemsContainer");
+  const chosenCatTitle = document.getElementById("chosenCat");
+
+  document.querySelectorAll(".category-card").forEach(card => {
+    card.addEventListener("click", () => {
+      const cat = card.dataset.cat;
+      chosenCatTitle.innerText = cat;
+      itemsContainer.innerHTML = "";
+      const opts = {{ options|tojson }};
+      opts[cat].forEach(it => {
+        itemsContainer.innerHTML += `
+          <label class="item-row">
+            <input type="radio" name="${cat}" value="${it}" required />
+            <span>${it}</span>
+          </label>
+        `;
+      });
+      step1.style.display = "none";
+      step2.style.display = "grid";
+    });
+  });
+</script>
+{% endblock %}
