@@ -2,7 +2,7 @@
 
 **Recursive Language Models** — process arbitrarily long prompts by offloading context into a REPL and enabling symbolic recursion via sub-LLM calls.
 
-Based on the paper [*Recursive Language Models*](https://arxiv.org/abs/2512.24601) (Zhang, Kraska & Khattab, 2025).
+Based on the paper [_Recursive Language Models_](https://arxiv.org/abs/2512.24601) (Zhang, Kraska & Khattab, 2025).
 
 ---
 
@@ -32,6 +32,7 @@ Standard LLMs break down when prompts exceed their context window, and quality d
 ```
 
 Key properties:
+
 - **The full prompt never enters the LLM's context window.** Only metadata (length, a short prefix) does.
 - **Stdout is truncated** before being shown to the root model, forcing it to use variables and sub-calls.
 - **Symbolic recursion:** the `llm_query()` function is callable inside REPL code, so the model can launch O(|P|) or even O(|P|^2) sub-processes over programmatic slices of the input.
@@ -39,13 +40,13 @@ Key properties:
 ## Installation
 
 ```bash
-pip install rlm
+uv add rlm
 ```
 
-Or with development dependencies:
+Or from source with development dependencies:
 
 ```bash
-pip install rlm[dev]
+uv sync --group dev
 ```
 
 **Requirements:** Python 3.10+ and an OpenAI-compatible client (`openai` package).
@@ -66,11 +67,11 @@ response = client.generate(
     context=very_long_text,  # string or list[str]
 )
 
-print(response.answer)       # final answer string
-print(response.iterations)   # REPL loop iterations used
-print(response.sub_calls)    # sub-LLM calls made
-print(response.total_input_tokens)
-print(response.total_output_tokens)
+print(response.answer)            # final answer string
+print(response.iterations)        # REPL loop iterations used
+print(response.sub_calls)         # sub-LLM calls made
+print(response.elapsed_seconds)   # wall-clock time
+print(response.cost)              # USD cost (if pricing configured)
 ```
 
 ## Advanced Usage
@@ -89,6 +90,26 @@ client = RLMWrapper(
         max_sub_calls=1000,
         verbose=True,
     ),
+)
+```
+
+### Async generation
+
+Use `agenerate()` with an async client for concurrent sub-calls via `llm_query_batch`:
+
+```python
+from openai import AsyncOpenAI
+from rlm import RLMWrapper
+
+client = RLMWrapper(
+    AsyncOpenAI(api_key="sk-..."),
+    root_model="gpt-4.1",
+    sub_model="gpt-4.1-mini",
+)
+
+response = await client.agenerate(
+    query="Summarize all documents.",
+    context=list_of_documents,
 )
 ```
 
@@ -134,23 +155,49 @@ response = client.generate(
 )
 ```
 
+### Cost tracking
+
+Configure per-token pricing to get cost estimates:
+
+```python
+config = RLMConfig(
+    cost_per_input_token=2.50 / 1_000_000,
+    cost_per_output_token=10.0 / 1_000_000,
+)
+client = RLMWrapper(OpenAI(api_key="sk-..."), root_model="gpt-4.1", config=config)
+response = client.generate(query="...", context=long_text)
+print(f"Cost: ${response.cost:.4f}")
+```
+
+### No-sub-calls ablation
+
+Reproduce the paper's "RLM (no sub-calls)" ablation — the model uses REPL code only, no `llm_query`:
+
+```python
+config = RLMConfig(enable_sub_calls=False)
+```
+
 ## Configuration
 
 All options live in `RLMConfig`:
 
-| Parameter | Default | Description |
-|---|---|---|
-| `max_iterations` | `25` | Max REPL loop iterations for the root model |
-| `max_sub_calls` | `500` | Max total sub-LLM calls per generation |
-| `max_recursion_depth` | `1` | Nesting depth (1 = sub-calls are plain LLM) |
-| `metadata_prefix_chars` | `1000` | Characters of stdout shown to the root model |
-| `sub_call_max_input_chars` | `500000` | Max chars per sub-call input |
-| `temperature` | `0.6` | Root model temperature |
-| `sub_temperature` | `0.4` | Sub-call temperature |
-| `root_max_tokens` | `16384` | Max output tokens per root iteration |
-| `sub_max_tokens` | `8192` | Max output tokens per sub-call |
-| `sandbox_timeout` | `120` | Timeout (seconds) per REPL execution |
-| `verbose` | `False` | Print debug logs |
+| Parameter                  | Default     | Description                                             |
+| -------------------------- | ----------- | ------------------------------------------------------- |
+| `max_iterations`           | `25`        | Max REPL loop iterations for the root model             |
+| `max_sub_calls`            | `500`       | Max total sub-LLM calls per generation                  |
+| `max_recursion_depth`      | `1`         | Nesting depth (1 = plain sub-calls, 2+ = recursive)    |
+| `enable_sub_calls`         | `True`      | Set `False` for the no-sub-calls ablation               |
+| `metadata_prefix_chars`    | `1000`      | Characters of stdout shown to the root model            |
+| `sub_call_max_input_chars` | `500000`    | Max chars per sub-call input                            |
+| `temperature`              | `0.6`       | Root model temperature                                  |
+| `sub_temperature`          | `0.4`       | Sub-call temperature                                    |
+| `root_max_tokens`          | `16384`     | Max output tokens per root iteration                    |
+| `sub_max_tokens`           | `8192`      | Max output tokens per sub-call                          |
+| `sandbox_timeout`          | `120`       | Timeout (seconds) per REPL execution                    |
+| `prompt_variant`           | `"default"` | `"default"`, `"cost_warning"`, or `"small_context"`     |
+| `cost_per_input_token`     | `0.0`       | USD per input token (enables `response.cost`)           |
+| `cost_per_output_token`    | `0.0`       | USD per output token (enables `response.cost`)          |
+| `verbose`                  | `False`     | Print debug logs                                        |
 
 ## Response Object
 
@@ -160,6 +207,8 @@ All options live in `RLMConfig`:
 - `iterations` — number of root loop iterations
 - `sub_calls` — total sub-LLM invocations
 - `total_input_tokens` / `total_output_tokens` — aggregated token usage
+- `cost` — estimated USD cost (based on configured per-token pricing)
+- `elapsed_seconds` — wall-clock time for the generation
 - `history` — full execution trace (`list[HistoryEntry]`)
 - `repl_variables` — final REPL state (variable names to repr strings)
 
@@ -167,18 +216,20 @@ All options live in `RLMConfig`:
 
 ```
 src/rlm/
-├── __init__.py         # Public API
-├── wrapper.py          # RLMWrapper — main entry point
-├── orchestrator.py     # Root REPL loop (Algorithm 1)
-├── repl.py             # REPL environment: exec, variables
-├── sub_caller.py       # Sub-LLM call manager
-├── parser.py           # Parse code blocks + FINAL directives
-├── prompt.py           # System prompt templates
-├── metadata.py         # Truncation logic
-├── config.py           # RLMConfig dataclass
-├── types.py            # RLMResponse, RLMEvent, HistoryEntry
-├── exceptions.py       # RLMError hierarchy
-└── sandbox/            # Future: pluggable sandboxing backends
+├── __init__.py            # Public API
+├── wrapper.py             # RLMWrapper — main entry point
+├── orchestrator.py        # Root REPL loop (Algorithm 1)
+├── async_orchestrator.py  # Async variant with concurrent sub-calls
+├── repl.py                # REPL environment: exec, variables
+├── sub_caller.py          # Sub-LLM call manager (sync)
+├── async_sub_caller.py    # Sub-LLM call manager (async)
+├── budget.py              # SharedBudget for global sub-call limits
+├── parser.py              # Parse code blocks + FINAL directives
+├── prompt.py              # System prompt templates (Appendix C.1)
+├── metadata.py            # Truncation logic
+├── config.py              # RLMConfig dataclass
+├── types.py               # RLMResponse, RLMEvent, HistoryEntry
+└── exceptions.py          # RLMError hierarchy
 ```
 
 ## Development
@@ -186,40 +237,41 @@ src/rlm/
 ```bash
 git clone https://github.com/replm/rlm.git
 cd rlm
-pip install -e ".[dev]"
-pytest
+uv sync --group dev
+uv run pytest
 ```
 
 ### Running tests
 
 ```bash
-pytest                     # all tests
-pytest tests/test_parser.py   # specific module
-pytest -v --tb=short       # verbose with short tracebacks
+uv run pytest                        # all tests
+uv run pytest tests/test_parser.py   # specific module
+uv run pytest -v --tb=short          # verbose with short tracebacks
 ```
 
 ### Linting
 
 ```bash
-ruff check src/ tests/
-ruff format src/ tests/
-mypy src/
+uv run ruff check src/ tests/
+uv run ruff format src/ tests/
+uv run mypy src/
 ```
 
 ## Security Note
 
-The REPL executes model-generated code via `exec()` in a restricted namespace. For production use, consider running the REPL in a sandboxed environment (Docker, E2B, etc.). The `sandbox/` module is a placeholder for pluggable backends.
+The REPL executes model-generated code via `exec()` in a restricted namespace. For production use, consider running the REPL in a sandboxed environment (Docker, E2B, etc.).
 
 ## Roadmap
 
-- Async support with parallel sub-calls
-- Pluggable sandboxing backends (Docker, E2B)
-- Streaming of root model output
-- Caching of sub-call results
-- Deeper recursion (sub-RLMs instead of plain sub-LLMs)
-- Per-model prompt tuning
+See [PLAN.md](PLAN.md) for detailed design notes.
 
-## Citation
+- Pluggable sandboxing backends (Docker, E2B, RestrictedPython)
+- Token-by-token streaming of root model output
+- Caching of sub-call results
+- Provider abstraction (Anthropic, Google, local models)
+- OpenTelemetry integration
+
+## Citations
 
 ```bibtex
 @article{zhang2025rlm,

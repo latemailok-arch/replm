@@ -211,6 +211,12 @@ class SubCallManager:
                     len(prompt),
                 )
 
+            # Snapshot token state before the inner run so we can compute
+            # how many tokens the inner orchestrator's root calls consumed
+            # (as opposed to inner sub-call tokens already tracked by budget).
+            tokens_before_in = self._budget.total_input_tokens
+            tokens_before_out = self._budget.total_output_tokens
+
             # Local import to avoid circular dependency.
             from .orchestrator import Orchestrator
 
@@ -228,6 +234,19 @@ class SubCallManager:
                 context=prompt,
                 on_event=self._event_callback,
             )
+
+            # The inner orchestrator tracked its own root-model tokens locally
+            # (not via the shared budget).  Add them so the caller's totals are
+            # accurate.  Sub-call tokens were already accumulated through the
+            # shared budget, so subtract them to avoid double-counting.
+            inner_root_in = (
+                resp.total_input_tokens - self._budget.total_input_tokens + tokens_before_in
+            )
+            inner_root_out = (
+                resp.total_output_tokens - self._budget.total_output_tokens + tokens_before_out
+            )
+            if inner_root_in > 0 or inner_root_out > 0:
+                self._budget.add_tokens(max(inner_root_in, 0), max(inner_root_out, 0))
 
             if self._event_callback:
                 self._event_callback(

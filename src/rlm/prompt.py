@@ -217,27 +217,6 @@ def build_root_system_prompt(
     )
 
     parts.append(
-        "You can also use code to filter the context before sub-calling. For example, "
-        "use regex to find relevant sections and only process those:\n\n"
-        "```repl\n"
-        "import re\n"
-        "# Find all sections mentioning a specific topic\n"
-        'matches = [(i, m.start()) for i, line in enumerate(context.split("\\n"))\n'
-        '           for m in re.finditer(r"climate|emissions|carbon", line, re.IGNORECASE)]\n'
-        'print(f"Found {len(matches)} matching lines")\n'
-        "# Gather the relevant chunks around each match\n"
-        "relevant = []\n"
-        'lines = context.split("\\n")\n'
-        "for line_idx, _ in matches[:50]:\n"
-        "    start = max(0, line_idx - 2)\n"
-        "    end = min(len(lines), line_idx + 3)\n"
-        '    relevant.append("\\n".join(lines[start:end]))\n'
-        'combined = "\\n---\\n".join(relevant)\n'
-        'answer = llm_query(f"Based on these excerpts, answer: {query}\\n\\n{combined}")\n'
-        "```"
-    )
-
-    parts.append(
         "As a final example, after analyzing the context and realizing it is separated "
         "by Markdown headers, you can maintain state through buffers by chunking the "
         "context by headers and iteratively querying an LLM over each section:\n\n"

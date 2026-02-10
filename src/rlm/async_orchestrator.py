@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -71,6 +72,7 @@ class AsyncOrchestrator:
         on_event: Callable[[RLMEvent], None] | None = None,
     ) -> RLMResponse:
         """Execute the full async RLM loop and return an :class:`RLMResponse`."""
+        start_time = time.monotonic()
 
         config = self._config
 
@@ -174,6 +176,7 @@ class AsyncOrchestrator:
                     history=history,
                     repl=repl,
                     on_event=on_event,
+                    start_time=start_time,
                 )
 
             # -- 3d. Execute code blocks in REPL -----------------------------
@@ -207,6 +210,7 @@ class AsyncOrchestrator:
                         history=history,
                         repl=repl,
                         on_event=on_event,
+                        start_time=start_time,
                     )
                 else:
                     available = ", ".join(repl.variable_names) or "(none)"
@@ -227,6 +231,7 @@ class AsyncOrchestrator:
                     history=history,
                     repl=repl,
                     on_event=on_event,
+                    start_time=start_time,
                 )
 
             # -- 3f. Truncated metadata of stdout ----------------------------
@@ -264,6 +269,7 @@ class AsyncOrchestrator:
             root_output_tokens=root_output_tokens,
             history=history,
             on_event=on_event,
+            start_time=start_time,
         )
 
     # -- Helpers -------------------------------------------------------------
@@ -277,6 +283,7 @@ class AsyncOrchestrator:
         root_output_tokens: int,
         history: list[HistoryEntry],
         on_event: Callable[[RLMEvent], None] | None,
+        start_time: float = 0.0,
     ) -> RLMResponse:
         """Send a nudge message and attempt to extract a final answer."""
         config = self._config
@@ -322,6 +329,7 @@ class AsyncOrchestrator:
             history=history,
             repl=repl,
             on_event=on_event,
+            start_time=start_time,
         )
 
     def _build_response(
@@ -334,6 +342,7 @@ class AsyncOrchestrator:
         history: list[HistoryEntry],
         repl: REPLEnvironment,
         on_event: Callable[[RLMEvent], None] | None,
+        start_time: float = 0.0,
     ) -> RLMResponse:
         if on_event:
             on_event(
@@ -343,6 +352,8 @@ class AsyncOrchestrator:
                     preview=answer[:120],
                 )
             )
+
+        elapsed = time.monotonic() - start_time if start_time else 0.0
 
         return RLMResponse(
             answer=answer,
@@ -354,4 +365,5 @@ class AsyncOrchestrator:
             cost_per_output_token=self._config.cost_per_output_token,
             history=history,
             repl_variables=repl.variable_summaries,
+            elapsed_seconds=elapsed,
         )

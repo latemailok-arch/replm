@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -66,6 +67,7 @@ class Orchestrator:
         on_event: Callable[[RLMEvent], None] | None = None,
     ) -> RLMResponse:
         """Execute the full RLM loop and return an :class:`RLMResponse`."""
+        start_time = time.monotonic()
 
         config = self._config
 
@@ -165,6 +167,7 @@ class Orchestrator:
                     history=history,
                     repl=repl,
                     on_event=on_event,
+                    start_time=start_time,
                 )
 
             # -- 3d. Execute code blocks in REPL -----------------------------
@@ -195,6 +198,7 @@ class Orchestrator:
                         history=history,
                         repl=repl,
                         on_event=on_event,
+                        start_time=start_time,
                     )
                 else:
                     # Tell the model the variable doesn't exist so it can fix it.
@@ -216,6 +220,7 @@ class Orchestrator:
                     history=history,
                     repl=repl,
                     on_event=on_event,
+                    start_time=start_time,
                 )
 
             # -- 3f. Truncated metadata of stdout ----------------------------
@@ -254,6 +259,7 @@ class Orchestrator:
             root_output_tokens=root_output_tokens,
             history=history,
             on_event=on_event,
+            start_time=start_time,
         )
 
     # -- Helpers -------------------------------------------------------------
@@ -267,6 +273,7 @@ class Orchestrator:
         root_output_tokens: int,
         history: list[HistoryEntry],
         on_event: Callable[[RLMEvent], None] | None,
+        start_time: float = 0.0,
     ) -> RLMResponse:
         """Send a nudge message and attempt to extract a final answer."""
         config = self._config
@@ -314,6 +321,7 @@ class Orchestrator:
             history=history,
             repl=repl,
             on_event=on_event,
+            start_time=start_time,
         )
 
     def _build_response(
@@ -326,6 +334,7 @@ class Orchestrator:
         history: list[HistoryEntry],
         repl: REPLEnvironment,
         on_event: Callable[[RLMEvent], None] | None,
+        start_time: float = 0.0,
     ) -> RLMResponse:
         if on_event:
             on_event(
@@ -335,6 +344,8 @@ class Orchestrator:
                     preview=answer[:120],
                 )
             )
+
+        elapsed = time.monotonic() - start_time if start_time else 0.0
 
         return RLMResponse(
             answer=answer,
@@ -346,4 +357,5 @@ class Orchestrator:
             cost_per_output_token=self._config.cost_per_output_token,
             history=history,
             repl_variables=repl.variable_summaries,
+            elapsed_seconds=elapsed,
         )

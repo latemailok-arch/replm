@@ -50,11 +50,6 @@ class TestBuildRootSystemPrompt:
         assert "Summarize this" in prompt
         assert "FINAL_VAR(final_answer)" in prompt
 
-    def test_contains_regex_example(self):
-        prompt = self._build()
-        assert "re.finditer" in prompt
-        assert "climate|emissions|carbon" in prompt
-
     def test_sub_call_capacity_from_config(self):
         prompt = self._build(sub_call_max_input_chars=200_000)
         assert "200,000" in prompt

@@ -54,6 +54,9 @@ class RLMResponse:
     repl_variables: dict[str, str] = field(default_factory=dict)
     """Final REPL state: variable names mapped to their ``repr``."""
 
+    elapsed_seconds: float = 0.0
+    """Wall-clock time for the entire generation run."""
+
     @property
     def cost(self) -> float:
         """Estimated total cost in USD based on token usage and configured pricing.

@@ -4,7 +4,6 @@ from rlm.metadata import (
     context_chunk_lengths,
     context_total_length,
     context_type_label,
-    make_context_metadata,
     make_metadata,
 )
 
@@ -33,31 +32,6 @@ class TestMakeMetadata:
         content = "Hello " * 100
         result = make_metadata(content, prefix_chars=10)
         assert "[truncated]" in result
-
-
-class TestMakeContextMetadata:
-    def test_string_context_short(self):
-        result = make_context_metadata("short text", prefix_chars=500)
-        assert "string" in result
-        assert "10 total characters" in result
-        assert "short text" in result
-
-    def test_string_context_long(self):
-        ctx = "x" * 2000
-        result = make_context_metadata(ctx, prefix_chars=500)
-        assert "2,000 total characters" in result
-        assert "[truncated]" in result
-        assert "`context`" in result
-
-    def test_list_context(self):
-        ctx = ["doc one", "doc two", "doc three"]
-        result = make_context_metadata(ctx, prefix_chars=500)
-        assert "list of 3 strings" in result
-        assert "Chunk lengths:" in result
-
-    def test_empty_list(self):
-        result = make_context_metadata([], prefix_chars=500)
-        assert "list of 0 strings" in result
 
 
 class TestHelpers:

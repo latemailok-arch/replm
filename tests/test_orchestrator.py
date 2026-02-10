@@ -175,6 +175,15 @@ class TestTokenTracking:
         assert resp.total_output_tokens > 0
 
 
+class TestElapsedSeconds:
+    def test_elapsed_seconds_positive(self):
+        client = MockClient(["FINAL(answer)"])
+        config = RLMConfig()
+        orch = Orchestrator(client, config, "m", "m")
+        resp = orch.run("q", "ctx")
+        assert resp.elapsed_seconds > 0
+
+
 class TestEvents:
     def test_events_fired(self):
         events: list[str] = []
@@ -345,6 +354,24 @@ class TestDeepRecursion:
         resp = orch.run("q", "ctx")
         assert resp.answer == "done"
         assert resp.sub_calls == 1
+
+    def test_recursive_token_tracking(self):
+        """Inner orchestrator root tokens are included in the total."""
+        client = MockClient(
+            [
+                '```repl\nresult = llm_query("test")\n```',
+                "FINAL(inner)",
+                "FINAL(outer)",
+            ]
+        )
+        config = RLMConfig(max_iterations=5, max_recursion_depth=2)
+        orch = Orchestrator(client, config, "m", "m")
+        resp = orch.run("q", "ctx")
+        # 3 LLM calls total: outer root x2, inner root x1.
+        # Each call: 100 input + 50 output tokens (from mock).
+        # Sub-call budget should include inner root tokens.
+        assert resp.total_input_tokens == 300
+        assert resp.total_output_tokens == 150
 
     def test_events_include_depth(self):
         """Events from sub-calls include the correct depth value."""

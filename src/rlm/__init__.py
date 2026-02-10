@@ -16,13 +16,7 @@ Basic usage::
 from .async_orchestrator import AsyncOrchestrator
 from .budget import SharedBudget
 from .config import RLMConfig
-from .exceptions import (
-    MaxIterationsExceeded,
-    MaxSubCallsExceeded,
-    REPLExecutionError,
-    RLMError,
-    SandboxTimeout,
-)
+from .exceptions import MaxSubCallsExceeded, RLMError
 from .types import HistoryEntry, RLMEvent, RLMResponse
 from .wrapper import RLMWrapper
 
@@ -35,10 +29,7 @@ __all__ = [
     "SharedBudget",
     "AsyncOrchestrator",
     "RLMError",
-    "MaxIterationsExceeded",
     "MaxSubCallsExceeded",
-    "REPLExecutionError",
-    "SandboxTimeout",
 ]
 
 __version__ = "0.1.0"
