@@ -263,8 +263,6 @@ The REPL executes model-generated code via `exec()` in a restricted namespace. F
 
 ## Roadmap
 
-See [PLAN.md](PLAN.md) for detailed design notes.
-
 - Pluggable sandboxing backends (Docker, E2B, RestrictedPython)
 - Token-by-token streaming of root model output
 - Caching of sub-call results

@@ -331,9 +331,7 @@ class TestSubprocessTimeout:
 
 class TestSubprocessLlmQuery:
     def test_llm_query_ipc(self):
-        repl = REPLEnvironment(
-            "ctx", _echo_llm_query, sandbox_mode="subprocess"
-        )
+        repl = REPLEnvironment("ctx", _echo_llm_query, sandbox_mode="subprocess")
         stdout, had_error = repl.execute("result = llm_query('hello')\nprint(result)")
         assert not had_error
         assert "echo: hello" in stdout
@@ -345,9 +343,7 @@ class TestSubprocessLlmQuery:
             llm_query_batch_fn=_echo_llm_query_batch,
             sandbox_mode="subprocess",
         )
-        stdout, had_error = repl.execute(
-            "results = llm_query_batch(['a', 'b'])\nprint(results)"
-        )
+        stdout, had_error = repl.execute("results = llm_query_batch(['a', 'b'])\nprint(results)")
         assert not had_error
         assert "echo: a" in stdout
         assert "echo: b" in stdout
