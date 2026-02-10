@@ -158,7 +158,7 @@ class TestSubCalls:
                 "FINAL(Done)",
             ]
         )
-        config = RLMConfig(max_iterations=5)
+        config = RLMConfig(max_iterations=5, max_recursion_depth=0)
         orch = Orchestrator(client, config, "m", "m")
         resp = orch.run("Summarize.", "A long document about many things.")
         assert resp.sub_calls == 1
@@ -258,3 +258,110 @@ class TestListContext:
         orch = Orchestrator(client, config, "m", "m")
         resp = orch.run("q", ["doc1", "doc2", "doc3"])
         assert resp.answer == "ok"
+
+
+class TestDeepRecursion:
+    def test_depth_2_recursive_sub_call(self):
+        """With max_recursion_depth=2, an llm_query triggers an inner
+        Orchestrator that itself can run code before returning FINAL.
+
+        Sequence of client.chat.completions.create calls:
+        1. Outer root → code calling llm_query("inner prompt")
+        2. Inner root (from inner Orchestrator) → FINAL(inner answer)
+        3. Outer root → FINAL(outer answer)
+        """
+        client = MockClient(
+            [
+                # 1. Outer root: run code that calls llm_query
+                '```repl\nresult = llm_query("inner prompt")\n```',
+                # 2. Inner orchestrator root call → immediate FINAL
+                "FINAL(inner answer)",
+                # 3. Outer root: return final answer using the result
+                "FINAL(outer answer)",
+            ]
+        )
+        config = RLMConfig(max_iterations=5, max_recursion_depth=2)
+        orch = Orchestrator(client, config, "m", "m")
+        resp = orch.run("Do something recursive.", "ctx")
+        assert resp.answer == "outer answer"
+        assert resp.sub_calls == 1
+
+    def test_depth_2_inner_runs_code(self):
+        """Inner orchestrator executes code before returning FINAL.
+
+        Sequence:
+        1. Outer root → code calling llm_query
+        2. Inner root → code (print)
+        3. Inner root → FINAL(computed)
+        4. Outer root → FINAL(done)
+        """
+        client = MockClient(
+            [
+                # 1. Outer root: call llm_query
+                '```repl\nresult = llm_query("compute 2+2")\n```',
+                # 2. Inner root: execute code
+                "```repl\nval = 2 + 2\nprint(val)\n```",
+                # 3. Inner root: return final
+                "FINAL(4)",
+                # 4. Outer root: return final
+                "FINAL(done)",
+            ]
+        )
+        config = RLMConfig(max_iterations=5, max_recursion_depth=2)
+        orch = Orchestrator(client, config, "m", "m")
+        resp = orch.run("What is 2+2?", "ctx")
+        assert resp.answer == "done"
+        assert resp.sub_calls == 1
+
+    def test_shared_budget_across_depths(self):
+        """Sub-calls at different depths share a single budget."""
+        from rlm.budget import SharedBudget
+
+        budget = SharedBudget(max_sub_calls=10)
+        client = MockClient(
+            [
+                '```repl\nresult = llm_query("test")\n```',
+                "FINAL(inner)",
+                "FINAL(outer)",
+            ]
+        )
+        config = RLMConfig(max_iterations=5, max_recursion_depth=2)
+        orch = Orchestrator(client, config, "m", "m", budget=budget)
+        resp = orch.run("q", "ctx")
+        assert resp.answer == "outer"
+        assert budget.call_count == 1
+
+    def test_depth_1_uses_plain_sub_calls(self):
+        """Default max_recursion_depth=1 makes plain (non-recursive) sub-calls."""
+        client = MockClient(
+            [
+                '```repl\nresult = llm_query("summarize")\nprint(result)\n```',
+                "plain sub answer",
+                "FINAL(done)",
+            ]
+        )
+        config = RLMConfig(max_iterations=5, max_recursion_depth=1)
+        orch = Orchestrator(client, config, "m", "m")
+        resp = orch.run("q", "ctx")
+        assert resp.answer == "done"
+        assert resp.sub_calls == 1
+
+    def test_events_include_depth(self):
+        """Events from sub-calls include the correct depth value."""
+        from rlm.types import RLMEvent
+
+        events: list[RLMEvent] = []
+        client = MockClient(
+            [
+                '```repl\nresult = llm_query("test")\n```',
+                "FINAL(inner)",
+                "FINAL(outer)",
+            ]
+        )
+        config = RLMConfig(max_iterations=5, max_recursion_depth=2)
+        orch = Orchestrator(client, config, "m", "m")
+        orch.run("q", "ctx", on_event=events.append)
+        sub_events = [e for e in events if e.type in ("sub_call_start", "sub_call_end")]
+        assert len(sub_events) >= 2
+        for e in sub_events:
+            assert e.depth == 0  # sub-call originated at depth 0

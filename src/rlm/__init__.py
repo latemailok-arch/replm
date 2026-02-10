@@ -13,6 +13,7 @@ Basic usage::
     print(response.answer)
 """
 
+from .budget import SharedBudget
 from .config import RLMConfig
 from .exceptions import (
     MaxIterationsExceeded,
@@ -30,6 +31,7 @@ __all__ = [
     "RLMResponse",
     "RLMEvent",
     "HistoryEntry",
+    "SharedBudget",
     "RLMError",
     "MaxIterationsExceeded",
     "MaxSubCallsExceeded",

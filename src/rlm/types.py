@@ -85,3 +85,6 @@ class RLMEvent:
 
     detail: dict[str, Any] = field(default_factory=dict)
     """Full details (type-specific)."""
+
+    depth: int = 0
+    """Recursion depth (0 = root level)."""

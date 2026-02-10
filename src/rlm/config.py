@@ -19,10 +19,14 @@ class RLMConfig:
     """Max total sub-LLM calls per generation."""
 
     max_recursion_depth: int = 1
-    """Nesting depth (1 = sub-calls are plain LLM, no further recursion).
+    """Nesting depth for recursive sub-calls.
 
-    .. note:: Reserved for v0.2.  Currently only depth=1 is supported.
-       Values > 1 are accepted but have no effect yet.
+    - ``1`` (default): Sub-calls are plain LLM calls (no further recursion).
+    - ``2+``: Sub-calls spawn inner RLM orchestrators that can themselves
+      make sub-calls, up to this depth.
+
+    All levels share a single :class:`~rlm.budget.SharedBudget` so the
+    global ``max_sub_calls`` limit applies across all depths.
     """
 
     enable_sub_calls: bool = True

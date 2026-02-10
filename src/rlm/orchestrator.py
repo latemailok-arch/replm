@@ -6,6 +6,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from .budget import SharedBudget
 from .config import RLMConfig
 from .metadata import (
     context_chunk_lengths,
@@ -35,6 +36,11 @@ class Orchestrator:
         Model identifier for the root LLM calls.
     sub_model:
         Model identifier for sub-LLM calls (falls back to *root_model*).
+    budget:
+        Shared budget for tracking calls/tokens across recursion depths.
+        If ``None``, a fresh budget is created from *config* defaults.
+    depth:
+        Current recursion depth (0 = root level).
     """
 
     def __init__(
@@ -43,11 +49,15 @@ class Orchestrator:
         config: RLMConfig,
         root_model: str,
         sub_model: str,
+        budget: SharedBudget | None = None,
+        depth: int = 0,
     ) -> None:
         self._client = client
         self._config = config
         self._root_model = root_model
         self._sub_model = sub_model
+        self._budget = budget
+        self._depth = depth
 
     def run(
         self,
@@ -67,7 +77,13 @@ class Orchestrator:
             logger.setLevel(logging.INFO)
 
         # -- 1. Sub-call manager + REPL initialization -----------------------
-        sub_mgr = SubCallManager(self._client, config, self._sub_model)
+        sub_mgr = SubCallManager(
+            self._client,
+            config,
+            self._sub_model,
+            budget=self._budget,
+            depth=self._depth,
+        )
         sub_mgr.set_event_callback(on_event)
 
         llm_query_fn = sub_mgr.make_query_fn() if config.enable_sub_calls else None
