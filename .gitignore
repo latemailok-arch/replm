@@ -32,3 +32,8 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Private docs (not part of the published package)
+PLAN.md
+OG_PAPER.md
+SUMMARY.md

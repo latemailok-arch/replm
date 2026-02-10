@@ -1,18 +1,21 @@
 """Basic example: use RLM to analyze a long text.
 
-Requires an OpenAI API key in the OPENAI_API_KEY environment variable.
+Requires a .env file in this directory (see .env.example).
 
-    OPENAI_API_KEY=sk-... python examples/basic_usage.py
+    python examples/basic_usage.py
 """
 
-import os
+from pathlib import Path
 
+from dotenv import load_dotenv
 from openai import OpenAI
 
 from rlm import RLMConfig, RLMWrapper
 
+load_dotenv(Path(__file__).with_name(".env"))
+
 client = RLMWrapper(
-    OpenAI(api_key=os.environ["OPENAI_API_KEY"]),
+    OpenAI(),
     root_model="gpt-4.1-mini",
     sub_model="gpt-4.1-mini",
     config=RLMConfig(verbose=True),

@@ -3,17 +3,22 @@
 Demonstrates passing ``context`` as a list of strings, where each
 element represents a separate document.
 
-    OPENAI_API_KEY=sk-... python examples/multi_document.py
+Requires a .env file in this directory (see .env.example).
+
+    python examples/multi_document.py
 """
 
-import os
+from pathlib import Path
 
+from dotenv import load_dotenv
 from openai import OpenAI
 
 from rlm import RLMConfig, RLMWrapper
 
+load_dotenv(Path(__file__).with_name(".env"))
+
 client = RLMWrapper(
-    OpenAI(api_key=os.environ["OPENAI_API_KEY"]),
+    OpenAI(),
     root_model="gpt-4.1-mini",
     sub_model="gpt-4.1-mini",
     config=RLMConfig(max_iterations=15, verbose=True),
