@@ -19,8 +19,8 @@ load_dotenv(Path(__file__).with_name(".env"))
 
 client = RLMWrapper(
     OpenAI(),
-    root_model="gpt-4.1-mini",
-    sub_model="gpt-4.1-mini",
+    root_model="gpt-5-mini",
+    sub_model="gpt-5-mini",
     config=RLMConfig(max_iterations=15, verbose=True),
 )
 

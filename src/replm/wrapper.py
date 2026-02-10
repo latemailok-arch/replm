@@ -28,7 +28,7 @@ class RLMWrapper:
     -------
     >>> from openai import OpenAI
     >>> from replm import RLMWrapper
-    >>> wrapper = RLMWrapper(OpenAI(api_key="sk-..."), root_model="gpt-4.1")
+    >>> wrapper = RLMWrapper(OpenAI(api_key="sk-..."), root_model="gpt-5.2")
     >>> resp = wrapper.generate("Summarize this.", long_text)
     >>> print(resp.answer)
     """
@@ -36,7 +36,7 @@ class RLMWrapper:
     def __init__(
         self,
         client: Any,
-        root_model: str = "gpt-4.1",
+        root_model: str = "gpt-5.2",
         sub_model: str | None = None,
         config: RLMConfig | None = None,
     ) -> None:

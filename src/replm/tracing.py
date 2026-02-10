@@ -45,7 +45,7 @@ def span(
     The active span (or ``None`` if OTel is not available).  Callers can
     set additional attributes on the yielded span::
 
-        with span("rlm.generate", {"model": "gpt-4.1"}) as s:
+        with span("rlm.generate", {"model": "gpt-5.2"}) as s:
             ...
             if s is not None:
                 s.set_attribute("rlm.iterations", 5)

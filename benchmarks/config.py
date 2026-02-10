@@ -28,20 +28,16 @@ class BenchmarkConfig:
         default_factory=lambda: os.environ["BASE-URL"],
     )
     root_model: str = field(
-        default_factory=lambda: os.environ.get(
-            "ROOT-MODEL",
-            os.environ.get("GPT-OSS-120b-MODEL", ""),  # noqa: SIM112
-        ),
+        default_factory=lambda: os.environ.get("ROOT-MODEL", ""),  # noqa: SIM112
     )
     sub_model: str = field(
-        default_factory=lambda: os.environ.get(
-            "SUB-MODEL",
-            os.environ.get("GPT-OSS-120b-MODEL", ""),  # noqa: SIM112
-        ),
+        default_factory=lambda: os.environ.get("SUB-MODEL", ""),  # noqa: SIM112
     )
 
-    # Reasoning effort for root model (None = omit parameter).
-    reasoning_effort: str | None = None
+    # Reasoning effort for base-mode root model (None = omit parameter).
+    # NOT used for RLM mode — reasoning_effort conflicts with the REPL paradigm
+    # by making the model "think internally" instead of writing code.
+    base_reasoning_effort: str | None = None
 
     # RLM tuning.
     max_iterations: int = 25
@@ -83,7 +79,6 @@ class BenchmarkConfig:
                 max_sub_calls=self.max_sub_calls,
                 temperature=self.temperature,
                 sub_temperature=self.sub_temperature,
-                reasoning_effort=self.reasoning_effort,
                 verbose=self.verbose,
             ),
         )
@@ -95,9 +90,9 @@ class BenchmarkConfig:
 def gpt5_config(**overrides: object) -> BenchmarkConfig:
     """GPT-5 (medium reasoning) + GPT-5-mini — matches the paper."""
     defaults = dict(
-        root_model="azure.gpt-5",
-        sub_model="azure.gpt-5-mini",
-        reasoning_effort="medium",
+        root_model=os.environ.get("ROOT-MODEL", "gpt-5"),  # noqa: SIM112
+        sub_model=os.environ.get("SUB-MODEL", "gpt-5-mini"),  # noqa: SIM112
+        base_reasoning_effort="medium",
         base_context_limit_chars=1_000_000,
         config_label="gpt5",
     )
@@ -106,11 +101,11 @@ def gpt5_config(**overrides: object) -> BenchmarkConfig:
 
 
 def oss120b_config(**overrides: object) -> BenchmarkConfig:
-    """gpt-oss-120b (root) + GPT-5-mini (sub) — open-source root."""
+    """Open-source 120B root + GPT-5-mini sub-calls."""
     defaults = dict(
-        root_model="kit.gpt-oss-120b",
-        sub_model="azure.gpt-5-mini",
-        reasoning_effort=None,
+        root_model=os.environ.get("ROOT-MODEL-ALT", "oss-120b"),  # noqa: SIM112
+        sub_model=os.environ.get("SUB-MODEL", "gpt-5-mini"),  # noqa: SIM112
+        base_reasoning_effort=None,
         base_context_limit_chars=500_000,
         config_label="oss120b",
     )

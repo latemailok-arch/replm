@@ -88,7 +88,7 @@ class TestNoOpTracing:
 
     def test_span_with_attributes_noop(self):
         """Passing attributes when tracer is None is safe."""
-        with span("rlm.generate", {"rlm.model": "gpt-4.1"}) as s:
+        with span("rlm.generate", {"rlm.model": "gpt-5.2"}) as s:
             assert s is None
 
     def test_orchestrator_runs_without_otel(self):
