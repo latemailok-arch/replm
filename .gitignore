@@ -26,6 +26,9 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
+# Environment
+.env
+
 # OS
 .DS_Store
 Thumbs.db
