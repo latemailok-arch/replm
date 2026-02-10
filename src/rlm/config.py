@@ -25,6 +25,15 @@ class RLMConfig:
        Values > 1 are accepted but have no effect yet.
     """
 
+    enable_sub_calls: bool = True
+    """Whether to enable sub-LLM calls (``llm_query``) in the REPL.
+
+    When ``False``, uses a simplified system prompt without sub-call
+    examples, and does not inject ``llm_query`` into the REPL environment.
+    Set to ``False`` to reproduce the "RLM (no sub-calls)" ablation from
+    the paper.
+    """
+
     metadata_prefix_chars: int = 1000
     """Characters of stdout / content shown to the root model."""
 

@@ -207,6 +207,45 @@ class TestReplVariablesInResponse:
         assert "my_data" in resp.repl_variables
 
 
+class TestNoSubCalls:
+    def test_no_subcalls_mode_works(self):
+        """In no-sub-calls mode, model can still use code and reach FINAL."""
+        client = MockClient(
+            [
+                "```repl\nprint(type(context))\n```",
+                "FINAL(done)",
+            ]
+        )
+        config = RLMConfig(max_iterations=5, enable_sub_calls=False)
+        orch = Orchestrator(client, config, "m", "m")
+        resp = orch.run("q", "ctx")
+        assert resp.answer == "done"
+        assert resp.sub_calls == 0
+
+    def test_no_subcalls_llm_query_unavailable(self):
+        """Calling llm_query in no-sub-calls mode gives a NameError."""
+        client = MockClient(
+            [
+                "```repl\ntry:\n    llm_query('test')\n"
+                "except NameError:\n    print('no llm_query')\n```",
+                "FINAL(correct)",
+            ]
+        )
+        config = RLMConfig(max_iterations=5, enable_sub_calls=False)
+        orch = Orchestrator(client, config, "m", "m")
+        resp = orch.run("q", "ctx")
+        assert resp.answer == "correct"
+
+    def test_no_subcalls_system_prompt_omits_llm_query(self):
+        """The system message should not mention llm_query."""
+        client = MockClient(["FINAL(ok)"])
+        config = RLMConfig(max_iterations=5, enable_sub_calls=False)
+        orch = Orchestrator(client, config, "m", "m")
+        orch.run("q", "ctx")
+        system_msg = client.chat.completions.calls[0]["messages"][0]["content"]
+        assert "llm_query" not in system_msg
+
+
 class TestListContext:
     def test_list_context_accessible(self):
         client = MockClient(

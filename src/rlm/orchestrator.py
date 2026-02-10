@@ -69,7 +69,8 @@ class Orchestrator:
         # -- 1. Sub-call manager + REPL initialization -----------------------
         sub_mgr = SubCallManager(self._client, config, self._sub_model)
         sub_mgr.set_event_callback(on_event)
-        llm_query_fn = sub_mgr.make_query_fn()
+
+        llm_query_fn = sub_mgr.make_query_fn() if config.enable_sub_calls else None
 
         repl = REPLEnvironment(
             context=context,

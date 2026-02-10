@@ -22,6 +22,7 @@ _INJECTED_NAMES = frozenset(
     {
         "context",
         "llm_query",
+        "llm_query_batch",
         "re",
         "json",
         "math",
@@ -40,6 +41,10 @@ class REPLEnvironment:
         The user's (potentially very long) context string or list of strings.
     llm_query_fn:
         A callable ``(prompt: str) -> str`` that invokes a sub-LLM.
+        ``None`` when running in no-sub-calls mode.
+    llm_query_batch_fn:
+        A callable ``(prompts: list[str]) -> list[str]`` for parallel
+        sub-calls.  ``None`` by default; injected by the async orchestrator.
     timeout:
         Per-execution timeout in seconds.
     """
@@ -47,18 +52,23 @@ class REPLEnvironment:
     def __init__(
         self,
         context: str | list[str],
-        llm_query_fn: Callable[[str], str],
+        llm_query_fn: Callable[[str], str] | None = None,
+        *,
+        llm_query_batch_fn: Callable[[list[str]], list[str]] | None = None,
         timeout: int = 120,
     ) -> None:
         self._namespace: dict[str, Any] = {
             "context": context,
-            "llm_query": llm_query_fn,
             # Pre-loaded standard-library modules.
             "re": re,
             "json": json,
             "math": math,
             "collections": collections,
         }
+        if llm_query_fn is not None:
+            self._namespace["llm_query"] = llm_query_fn
+        if llm_query_batch_fn is not None:
+            self._namespace["llm_query_batch"] = llm_query_batch_fn
         self._timeout = timeout
 
     def execute(self, code: str) -> tuple[str, bool]:

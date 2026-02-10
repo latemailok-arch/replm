@@ -165,6 +165,56 @@ class TestPromptVariants:
             RLMConfig(prompt_variant="nonexistent")
 
 
+class TestNoSubCallsPrompt:
+    def _build(self, **kwargs):
+        config = RLMConfig(enable_sub_calls=False, **kwargs)
+        return build_root_system_prompt(
+            context_type="string",
+            context_total_length=50_000,
+            context_lengths=[50_000],
+            config=config,
+        )
+
+    def test_omits_llm_query(self):
+        prompt = self._build()
+        assert "llm_query" not in prompt
+
+    def test_omits_sub_llm_mentions(self):
+        prompt = self._build()
+        assert "sub-LLM" not in prompt
+        assert "recursive" not in prompt.lower().split("query")[0]
+
+    def test_has_context_variable(self):
+        prompt = self._build()
+        assert "`context` variable" in prompt
+
+    def test_has_print_statement(self):
+        prompt = self._build()
+        assert "`print()`" in prompt
+
+    def test_has_code_examples(self):
+        prompt = self._build()
+        assert "```repl" in prompt
+        assert "regex" in prompt.lower() or "re." in prompt
+
+    def test_has_buffer_examples(self):
+        prompt = self._build()
+        assert "buffers" in prompt
+
+    def test_has_final_instructions(self):
+        prompt = self._build()
+        assert "FINAL(your final answer here)" in prompt
+        assert "FINAL_VAR(variable_name)" in prompt
+
+    def test_has_no_code_note(self):
+        prompt = self._build()
+        assert "you cannot write anything other than the final answer" in prompt
+
+    def test_has_context_metadata(self):
+        prompt = self._build()
+        assert "50,000 total characters" in prompt
+
+
 class TestBuildNudgePrompt:
     def test_nudge_mentions_final(self):
         prompt = build_nudge_prompt()

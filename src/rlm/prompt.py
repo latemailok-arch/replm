@@ -24,8 +24,14 @@ def build_root_system_prompt(
     """Build the system prompt for the root model.
 
     Parameters correspond to metadata about the user's context — the actual
-    content never enters the prompt.
+    content never enters the prompt.  Delegates to the no-sub-calls prompt
+    when ``config.enable_sub_calls`` is ``False``.
     """
+    if not config.enable_sub_calls:
+        return _build_no_subcalls_prompt(
+            context_type, context_total_length, context_lengths, config
+        )
+
     variant = config.prompt_variant
     lengths_str = str(context_lengths)
 
@@ -274,6 +280,123 @@ def build_root_system_prompt(
         'response — do not just say "I will do this". Output to the REPL environment '
         "and recursive LLMs as much as possible. Remember to explicitly answer the "
         "original query in your final answer."
+    )
+
+    return "\n\n".join(parts)
+
+
+def _build_no_subcalls_prompt(
+    context_type: str,
+    context_total_length: int,
+    context_lengths: list[int],
+    config: RLMConfig,
+) -> str:
+    """Build the system prompt for the no-sub-calls ablation.
+
+    Based on paper Appendix C.1 prompt (2): REPL without ``llm_query``.
+    The model can only use code execution (regex, string ops, etc.) to
+    interact with the context.
+    """
+    lengths_str = str(context_lengths)
+
+    parts: list[str] = []
+
+    parts.append(
+        "You are tasked with answering a query with associated context. "
+        "You can access, transform, and analyze this context interactively in a REPL "
+        "environment, which you are strongly encouraged to use as much as possible. "
+        "You will be queried iteratively until you provide a final answer."
+    )
+
+    parts.append(
+        f"Your context is a {context_type} with {context_total_length:,} total "
+        f"characters, and is broken up into chunks of char lengths: {lengths_str}."
+    )
+
+    parts.append(
+        "The REPL environment is initialized with:\n\n"
+        "1. A `context` variable that contains extremely important information about "
+        "your query. You should check the content of the `context` variable to "
+        "understand what you are working with. Make sure you look through it "
+        "sufficiently as you answer your query.\n\n"
+        "2. The ability to use `print()` statements to view the output of your REPL "
+        "code and continue your reasoning."
+    )
+
+    parts.append(
+        "You will only be able to see truncated outputs from the REPL environment "
+        "to not overflow the context window. Use these variables as buffers to build "
+        "up your final answer."
+    )
+
+    parts.append(
+        "Make sure to explicitly look through the entire context in REPL before "
+        "answering your query. An example strategy is to first look at the context "
+        "and figure out a chunking strategy, then break up the context into smart "
+        "chunks, and save information to buffers."
+    )
+
+    parts.append(
+        "You can use the REPL environment to help you understand your context, "
+        "especially if it is huge."
+    )
+
+    parts.append(
+        "When you want to execute Python code in the REPL environment, wrap it in "
+        "triple backticks with the `repl` language identifier. For example, "
+        "say we want to peek at the first 10000 characters of the context:\n\n"
+        "```repl\n"
+        "chunk = context[:10000]\n"
+        'print(f"First 10000 characters of context: {chunk}")\n'
+        "```"
+    )
+
+    parts.append(
+        "As another example, after analyzing the context and realizing we need to "
+        "search for specific topics, we can use regex to find relevant sections and "
+        "maintain state through buffers:\n\n"
+        "```repl\n"
+        "import re\n"
+        'query_terms = ["magic", "number"]\n'
+        "relevant_sections = []\n"
+        "buffers = []\n"
+        "\n"
+        "# Search for sections containing our query terms\n"
+        "for i, chunk in enumerate(context):\n"
+        "    chunk_text = str(chunk).lower()\n"
+        "    if any(term in chunk_text for term in query_terms):\n"
+        "        relevant_sections.append((i, chunk))\n"
+        "\n"
+        "# Process each relevant section and print findings\n"
+        "for section_idx, section_content in relevant_sections:\n"
+        '    print(f"Found relevant section {section_idx}:")\n'
+        '    print(f"Content: {section_content[:500]}...")\n'
+        '    buffers.append(f"Section {section_idx}: Contains references")\n'
+        "\n"
+        'print(f"Total relevant sections found: {len(relevant_sections)}")\n'
+        'print("Summary of findings:")\n'
+        "for buffer in buffers:\n"
+        '    print(f"- {buffer}")\n'
+        "```"
+    )
+
+    parts.append(
+        "IMPORTANT: When you are done with the iterative process, you MUST provide a "
+        "final answer inside a FINAL function when you have completed your task, NOT "
+        "in code. Do not use these tags unless you have completed your task. You have "
+        "two options:\n\n"
+        "1. Use FINAL(your final answer here) to provide the answer directly\n"
+        "2. Use FINAL_VAR(variable_name) to return a variable you have created in the "
+        "REPL environment as your final output\n\n"
+        "Note: If you are ready to provide a final answer, you cannot write anything "
+        "other than the final answer in the FINAL or FINAL_VAR tags."
+    )
+
+    parts.append(
+        "Think step by step carefully, plan, and execute this plan immediately in your "
+        'response — do not just say "I will do this". Output to the REPL environment '
+        "as much as possible. Remember to explicitly answer the original query in "
+        "your final answer."
     )
 
     return "\n\n".join(parts)

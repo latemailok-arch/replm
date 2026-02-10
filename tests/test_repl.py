@@ -116,3 +116,35 @@ class TestNamespaceHelpers:
         repl.execute("big = 'a' * 1000")
         summaries = repl.variable_summaries
         assert len(summaries["big"]) <= 203  # 200 + "..."
+
+
+class TestNoLlmQuery:
+    def test_repl_works_without_llm_query(self):
+        repl = REPLEnvironment("hello world")
+        stdout, had_error = repl.execute("print(len(context))")
+        assert not had_error
+        assert "11" in stdout
+
+    def test_llm_query_raises_name_error(self):
+        repl = REPLEnvironment("ctx")
+        stdout, had_error = repl.execute("llm_query('test')")
+        assert had_error
+        assert "NameError" in stdout
+
+    def test_context_still_accessible(self):
+        repl = REPLEnvironment(["a", "bb", "ccc"])
+        stdout, had_error = repl.execute("print(len(context))")
+        assert not had_error
+        assert "3" in stdout
+
+    def test_modules_still_available(self):
+        repl = REPLEnvironment("ctx")
+        stdout, had_error = repl.execute("print(math.sqrt(9))")
+        assert not had_error
+        assert "3.0" in stdout
+
+    def test_variable_names_exclude_llm_query(self):
+        repl = REPLEnvironment("ctx")
+        repl.execute("x = 42")
+        assert "x" in repl.variable_names
+        assert "llm_query" not in repl.variable_names
