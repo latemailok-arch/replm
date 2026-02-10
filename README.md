@@ -194,6 +194,7 @@ All options live in `RLMConfig`:
 | `root_max_tokens`          | `16384`     | Max output tokens per root iteration                    |
 | `sub_max_tokens`           | `8192`      | Max output tokens per sub-call                          |
 | `sandbox_timeout`          | `120`       | Timeout (seconds) per REPL execution                    |
+| `sandbox_mode`             | `"restricted"` | `"restricted"`, `"subprocess"`, or `"none"`          |
 | `prompt_variant`           | `"default"` | `"default"`, `"cost_warning"`, or `"small_context"`     |
 | `cost_per_input_token`     | `0.0`       | USD per input token (enables `response.cost`)           |
 | `cost_per_output_token`    | `0.0`       | USD per output token (enables `response.cost`)          |
@@ -212,6 +213,40 @@ All options live in `RLMConfig`:
 - `history` — full execution trace (`list[HistoryEntry]`)
 - `repl_variables` — final REPL state (variable names to repr strings)
 
+## Sandboxing
+
+The REPL executes model-generated code, so sandboxing is on by default. Three modes are available via `sandbox_mode`:
+
+### `"restricted"` (default)
+
+In-process sandbox that blocks dangerous operations while allowing the standard-library modules needed for data processing:
+
+- **Blocked:** `os`, `subprocess`, `sys`, `shutil`, `socket`, file I/O (`open`), code execution (`eval`, `exec`, `compile`), and all other non-whitelisted modules
+- **Allowed:** `re`, `json`, `math`, `collections`, `itertools`, `functools`, `datetime`, `hashlib`, `csv`, `statistics`, `random`, `textwrap`, `copy`, `base64`, `urllib.parse`, and [more](src/rlm/sandbox/restricted.py)
+
+Zero overhead — runs in the same process with a restricted `__builtins__` dict and a custom import hook.
+
+### `"subprocess"`
+
+Full process isolation. Code runs in a child process via `multiprocessing`:
+
+- Real timeout enforcement — `process.kill()` terminates stuck code
+- Auto-recovery — a new child is spawned after a timeout, with user variables restored
+- `llm_query` and `llm_query_batch` are proxied back to the parent through IPC
+- Restricted builtins are also applied inside the child
+
+```python
+config = RLMConfig(sandbox_mode="subprocess", sandbox_timeout=30)
+```
+
+### `"none"`
+
+No restrictions. Code runs with full access to the Python runtime. Use only in trusted environments or when you need access to blocked modules.
+
+```python
+config = RLMConfig(sandbox_mode="none")
+```
+
 ## Architecture
 
 ```
@@ -229,7 +264,11 @@ src/rlm/
 ├── metadata.py            # Truncation logic
 ├── config.py              # RLMConfig dataclass
 ├── types.py               # RLMResponse, RLMEvent, HistoryEntry
-└── exceptions.py          # RLMError hierarchy
+├── exceptions.py          # RLMError hierarchy
+└── sandbox/
+    ├── __init__.py            # Sandbox public API
+    ├── restricted.py          # Safe builtins + import whitelist
+    └── subprocess_executor.py # Child process with IPC
 ```
 
 ## Development
@@ -257,13 +296,9 @@ uv run ruff format src/ tests/
 uv run mypy src/
 ```
 
-## Security Note
-
-The REPL executes model-generated code via `exec()` in a restricted namespace. For production use, consider running the REPL in a sandboxed environment (Docker, E2B, etc.).
-
 ## Roadmap
 
-- Pluggable sandboxing backends (Docker, E2B, RestrictedPython)
+- External sandboxing backends (Docker, E2B)
 - Token-by-token streaming of root model output
 - Caching of sub-call results
 - Provider abstraction (Anthropic, Google, local models)
