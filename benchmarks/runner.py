@@ -128,7 +128,7 @@ class BenchmarkRunner:
         context_str = task.context if isinstance(task.context, str) else "\n\n".join(task.context)
         user_msg = f"Context:\n{context_str}\n\nQuestion: {task.query}"
 
-        response = self._client.chat.completions.create(
+        kwargs: dict[str, object] = dict(
             model=self._config.root_model,
             messages=[
                 {
@@ -141,6 +141,11 @@ class BenchmarkRunner:
             temperature=self._config.temperature,
             max_tokens=16384,
         )
+        if self._config.reasoning_effort is not None:
+            kwargs["extra_body"] = {
+                "reasoning_effort": self._config.reasoning_effort,
+            }
+        response = self._client.chat.completions.create(**kwargs)
 
         predicted = (response.choices[0].message.content or "").strip()
         usage = getattr(response, "usage", None)
