@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from .config import RLMConfig
-from .exceptions import MaxIterationsExceeded
 from .metadata import (
     context_chunk_lengths,
     context_total_length,
@@ -200,9 +200,7 @@ class Orchestrator:
             messages.append({"role": "assistant", "content": assistant_text})
 
             repl_label = "[REPL Output] " if combined_stdout else "[REPL] No output."
-            messages.append(
-                {"role": "user", "content": repl_label + truncated_stdout}
-            )
+            messages.append({"role": "user", "content": repl_label + truncated_stdout})
 
         # -- 4. Max iterations: nudge for a final answer ---------------------
         return self._force_final(

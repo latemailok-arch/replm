@@ -38,7 +38,7 @@ def make_context_metadata(context: str | list[str], prefix_chars: int = 500) -> 
         prefix = context[:prefix_chars]
         lines = [
             f"Your context is a string with {total:,} total characters.",
-            f"It is stored in the variable `context` in your REPL environment.",
+            "It is stored in the variable `context` in your REPL environment.",
         ]
         if total > prefix_chars:
             lines.append(f"First {prefix_chars:,} characters:\n{prefix}\n[truncated]")
@@ -50,9 +50,8 @@ def make_context_metadata(context: str | list[str], prefix_chars: int = 500) -> 
     chunk_lengths = [len(c) for c in context]
     total = sum(chunk_lengths)
     lines = [
-        f"Your context is a list of {len(context):,} strings "
-        f"with {total:,} total characters.",
-        f"It is stored in the variable `context` in your REPL environment.",
+        f"Your context is a list of {len(context):,} strings with {total:,} total characters.",
+        "It is stored in the variable `context` in your REPL environment.",
         f"Chunk lengths: {chunk_lengths}",
     ]
     # Show a prefix of the first chunk.

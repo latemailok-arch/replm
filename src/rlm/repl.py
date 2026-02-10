@@ -12,18 +12,23 @@ import io
 import json
 import math
 import re
-import signal
 import sys
 import threading
 import traceback
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
-
-_INJECTED_NAMES = frozenset({
-    "context", "llm_query",
-    "re", "json", "math", "collections",
-    "__builtins__",
-})
+_INJECTED_NAMES = frozenset(
+    {
+        "context",
+        "llm_query",
+        "re",
+        "json",
+        "math",
+        "collections",
+        "__builtins__",
+    }
+)
 
 
 class REPLEnvironment:

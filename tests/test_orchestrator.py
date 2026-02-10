@@ -5,12 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import pytest
-
 from rlm.config import RLMConfig
 from rlm.orchestrator import Orchestrator
-from rlm.types import RLMResponse
-
 
 # ---------------------------------------------------------------------------
 # Mock OpenAI client
@@ -88,10 +84,12 @@ class TestBasicLoop:
 
     def test_code_then_final(self):
         """Model runs code first, then gives FINAL on the second iteration."""
-        client = MockClient([
-            "Let me check.\n```repl\nx = len(context)\nprint(x)\n```",
-            "FINAL(The context has many characters)",
-        ])
+        client = MockClient(
+            [
+                "Let me check.\n```repl\nx = len(context)\nprint(x)\n```",
+                "FINAL(The context has many characters)",
+            ]
+        )
         config = RLMConfig(max_iterations=5)
         orch = Orchestrator(client, config, "m", "m")
         resp = orch.run("How long is the context?", "hello world")
@@ -100,10 +98,12 @@ class TestBasicLoop:
 
     def test_final_var(self):
         """Model sets a variable and uses FINAL_VAR to return it."""
-        client = MockClient([
-            "```repl\nresult = 'computed answer'\n```",
-            "FINAL_VAR(result)",
-        ])
+        client = MockClient(
+            [
+                "```repl\nresult = 'computed answer'\n```",
+                "FINAL_VAR(result)",
+            ]
+        )
         config = RLMConfig(max_iterations=5)
         orch = Orchestrator(client, config, "m", "m")
         resp = orch.run("Compute something.", "data")
@@ -112,12 +112,14 @@ class TestBasicLoop:
     def test_max_iterations_nudge(self):
         """When max iterations are reached, a nudge message is sent."""
         # 3 iterations of "thinking" + 1 nudge response
-        client = MockClient([
-            "```repl\nprint('step 1')\n```",
-            "```repl\nprint('step 2')\n```",
-            "```repl\nprint('step 3')\n```",
-            "FINAL(forced answer)",
-        ])
+        client = MockClient(
+            [
+                "```repl\nprint('step 1')\n```",
+                "```repl\nprint('step 2')\n```",
+                "```repl\nprint('step 3')\n```",
+                "FINAL(forced answer)",
+            ]
+        )
         config = RLMConfig(max_iterations=3)
         orch = Orchestrator(client, config, "m", "m")
         resp = orch.run("What?", "ctx")
@@ -125,11 +127,13 @@ class TestBasicLoop:
 
     def test_fallback_answer_variable(self):
         """When nudge still has no FINAL, fall back to known variable names."""
-        client = MockClient([
-            "```repl\nanswer = 'my answer'\n```",
-            "```repl\nprint('still thinking')\n```",
-            "I don't know how to wrap up.",  # nudge response without FINAL
-        ])
+        client = MockClient(
+            [
+                "```repl\nanswer = 'my answer'\n```",
+                "```repl\nprint('still thinking')\n```",
+                "I don't know how to wrap up.",  # nudge response without FINAL
+            ]
+        )
         config = RLMConfig(max_iterations=2)
         orch = Orchestrator(client, config, "m", "m")
         resp = orch.run("What?", "ctx")
@@ -147,11 +151,13 @@ class TestSubCalls:
         # 1. Root call → code that calls llm_query
         # 2. Sub-call (from llm_query) → "sub answer"
         # 3. Root call → FINAL
-        client = MockClient([
-            '```repl\nresult = llm_query("summarize: " + context[:100])\nprint(result)\n```',
-            "sub answer from LLM",  # this is the sub-call response
-            "FINAL(Done)",
-        ])
+        client = MockClient(
+            [
+                '```repl\nresult = llm_query("summarize: " + context[:100])\nprint(result)\n```',
+                "sub answer from LLM",  # this is the sub-call response
+                "FINAL(Done)",
+            ]
+        )
         config = RLMConfig(max_iterations=5)
         orch = Orchestrator(client, config, "m", "m")
         resp = orch.run("Summarize.", "A long document about many things.")
@@ -172,10 +178,12 @@ class TestTokenTracking:
 class TestEvents:
     def test_events_fired(self):
         events: list[str] = []
-        client = MockClient([
-            "```repl\nprint('hi')\n```",
-            "FINAL(done)",
-        ])
+        client = MockClient(
+            [
+                "```repl\nprint('hi')\n```",
+                "FINAL(done)",
+            ]
+        )
         config = RLMConfig(max_iterations=5)
         orch = Orchestrator(client, config, "m", "m")
         orch.run("q", "ctx", on_event=lambda e: events.append(e.type))
@@ -187,10 +195,12 @@ class TestEvents:
 
 class TestReplVariablesInResponse:
     def test_repl_variables_returned(self):
-        client = MockClient([
-            "```repl\nmy_data = [1, 2, 3]\n```",
-            "FINAL(done)",
-        ])
+        client = MockClient(
+            [
+                "```repl\nmy_data = [1, 2, 3]\n```",
+                "FINAL(done)",
+            ]
+        )
         config = RLMConfig(max_iterations=5)
         orch = Orchestrator(client, config, "m", "m")
         resp = orch.run("q", "ctx")
@@ -199,10 +209,12 @@ class TestReplVariablesInResponse:
 
 class TestListContext:
     def test_list_context_accessible(self):
-        client = MockClient([
-            "```repl\nprint(len(context))\nprint(context[0])\n```",
-            "FINAL(ok)",
-        ])
+        client = MockClient(
+            [
+                "```repl\nprint(len(context))\nprint(context[0])\n```",
+                "FINAL(ok)",
+            ]
+        )
         config = RLMConfig(max_iterations=5)
         orch = Orchestrator(client, config, "m", "m")
         resp = orch.run("q", ["doc1", "doc2", "doc3"])

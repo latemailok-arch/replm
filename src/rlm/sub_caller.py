@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Protocol
+from collections.abc import Callable
+from typing import Any, Protocol
 
 from .config import RLMConfig
 from .exceptions import MaxSubCallsExceeded
@@ -43,9 +44,7 @@ class SubCallManager:
         self._event_callback: Callable[[RLMEvent], None] | None = None
         self._current_iteration: int = 0
 
-    def set_event_callback(
-        self, callback: Callable[[RLMEvent], None] | None
-    ) -> None:
+    def set_event_callback(self, callback: Callable[[RLMEvent], None] | None) -> None:
         self._event_callback = callback
 
     def set_current_iteration(self, iteration: int) -> None:
