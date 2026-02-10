@@ -1,0 +1,188 @@
+"""Unit tests for rlm.sub_caller.SubCallManager."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+import pytest
+
+from rlm.config import RLMConfig
+from rlm.exceptions import MaxSubCallsExceeded
+from rlm.sub_caller import SubCallManager
+from rlm.types import RLMEvent
+
+# -- Mock client -------------------------------------------------------------
+
+
+@dataclass
+class _Usage:
+    prompt_tokens: int = 10
+    completion_tokens: int = 5
+
+
+@dataclass
+class _Message:
+    content: str = "mock response"
+
+
+@dataclass
+class _Choice:
+    message: _Message
+
+
+@dataclass
+class _Response:
+    choices: list[_Choice]
+    usage: _Usage
+
+
+class _MockCompletions:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def create(self, **kwargs: Any) -> _Response:
+        self.calls.append(kwargs)
+        return _Response(choices=[_Choice(message=_Message())], usage=_Usage())
+
+
+class _MockChat:
+    def __init__(self) -> None:
+        self.completions = _MockCompletions()
+
+
+class _MockClient:
+    def __init__(self) -> None:
+        self.chat = _MockChat()
+
+
+# -- Tests -------------------------------------------------------------------
+
+
+class TestMakeQueryFn:
+    def test_returns_callable(self):
+        mgr = SubCallManager(_MockClient(), RLMConfig(), "test-model")
+        fn = mgr.make_query_fn()
+        assert callable(fn)
+
+    def test_basic_call(self):
+        client = _MockClient()
+        mgr = SubCallManager(client, RLMConfig(), "test-model")
+        fn = mgr.make_query_fn()
+        result = fn("hello world")
+        assert result == "mock response"
+        assert mgr.call_count == 1
+        assert len(client.chat.completions.calls) == 1
+
+    def test_model_passed_correctly(self):
+        client = _MockClient()
+        mgr = SubCallManager(client, RLMConfig(), "my-special-model")
+        fn = mgr.make_query_fn()
+        fn("test")
+        call = client.chat.completions.calls[0]
+        assert call["model"] == "my-special-model"
+
+    def test_temperature_from_config(self):
+        client = _MockClient()
+        config = RLMConfig(sub_temperature=0.7)
+        mgr = SubCallManager(client, config, "m")
+        fn = mgr.make_query_fn()
+        fn("test")
+        call = client.chat.completions.calls[0]
+        assert call["temperature"] == 0.7
+
+    def test_max_tokens_from_config(self):
+        client = _MockClient()
+        config = RLMConfig(sub_max_tokens=4096)
+        mgr = SubCallManager(client, config, "m")
+        fn = mgr.make_query_fn()
+        fn("test")
+        call = client.chat.completions.calls[0]
+        assert call["max_tokens"] == 4096
+
+
+class TestTokenTracking:
+    def test_tokens_accumulated(self):
+        mgr = SubCallManager(_MockClient(), RLMConfig(), "m")
+        fn = mgr.make_query_fn()
+        fn("a")
+        fn("b")
+        fn("c")
+        assert mgr.call_count == 3
+        assert mgr.total_input_tokens == 30  # 10 * 3
+        assert mgr.total_output_tokens == 15  # 5 * 3
+
+
+class TestInputTruncation:
+    def test_long_input_truncated(self):
+        client = _MockClient()
+        config = RLMConfig(sub_call_max_input_chars=100)
+        mgr = SubCallManager(client, config, "m")
+        fn = mgr.make_query_fn()
+        fn("x" * 500)
+        call = client.chat.completions.calls[0]
+        user_msg = call["messages"][1]["content"]
+        assert len(user_msg) == 100
+
+    def test_short_input_not_truncated(self):
+        client = _MockClient()
+        config = RLMConfig(sub_call_max_input_chars=1000)
+        mgr = SubCallManager(client, config, "m")
+        fn = mgr.make_query_fn()
+        fn("short prompt")
+        call = client.chat.completions.calls[0]
+        user_msg = call["messages"][1]["content"]
+        assert user_msg == "short prompt"
+
+
+class TestMaxSubCalls:
+    def test_raises_when_limit_reached(self):
+        config = RLMConfig(max_sub_calls=2)
+        mgr = SubCallManager(_MockClient(), config, "m")
+        fn = mgr.make_query_fn()
+        fn("a")
+        fn("b")
+        with pytest.raises(MaxSubCallsExceeded) as exc_info:
+            fn("c")
+        assert exc_info.value.call_count == 2
+        assert exc_info.value.max_sub_calls == 2
+
+    def test_limit_of_one(self):
+        config = RLMConfig(max_sub_calls=1)
+        mgr = SubCallManager(_MockClient(), config, "m")
+        fn = mgr.make_query_fn()
+        fn("a")
+        with pytest.raises(MaxSubCallsExceeded):
+            fn("b")
+
+
+class TestReset:
+    def test_reset_clears_counters(self):
+        mgr = SubCallManager(_MockClient(), RLMConfig(), "m")
+        fn = mgr.make_query_fn()
+        fn("a")
+        fn("b")
+        assert mgr.call_count == 2
+        mgr.reset()
+        assert mgr.call_count == 0
+        assert mgr.total_input_tokens == 0
+        assert mgr.total_output_tokens == 0
+
+
+class TestEventCallbacks:
+    def test_events_fired(self):
+        events: list[RLMEvent] = []
+        mgr = SubCallManager(_MockClient(), RLMConfig(), "m")
+        mgr.set_event_callback(events.append)
+        mgr.set_current_iteration(3)
+        fn = mgr.make_query_fn()
+        fn("hello")
+        assert len(events) == 2
+        assert events[0].type == "sub_call_start"
+        assert events[0].iteration == 3
+        assert events[1].type == "sub_call_end"
+
+    def test_no_events_without_callback(self):
+        mgr = SubCallManager(_MockClient(), RLMConfig(), "m")
+        fn = mgr.make_query_fn()
+        fn("hello")  # should not raise

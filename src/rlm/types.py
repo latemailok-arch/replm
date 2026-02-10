@@ -42,11 +42,28 @@ class RLMResponse:
     total_output_tokens: int
     """Aggregated output tokens across all LLM calls (root + sub)."""
 
+    cost_per_input_token: float = 0.0
+    """Cost per input token in USD (set via ``RLMConfig.cost_per_input_token``)."""
+
+    cost_per_output_token: float = 0.0
+    """Cost per output token in USD (set via ``RLMConfig.cost_per_output_token``)."""
+
     history: list[HistoryEntry] = field(default_factory=list)
     """Full execution trace for debugging / observability."""
 
     repl_variables: dict[str, str] = field(default_factory=dict)
     """Final REPL state: variable names mapped to their ``repr``."""
+
+    @property
+    def cost(self) -> float:
+        """Estimated total cost in USD based on token usage and configured pricing.
+
+        Returns 0.0 if pricing was not configured.
+        """
+        return (
+            self.total_input_tokens * self.cost_per_input_token
+            + self.total_output_tokens * self.cost_per_output_token
+        )
 
 
 @dataclass

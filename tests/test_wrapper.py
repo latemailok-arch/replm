@@ -89,3 +89,40 @@ class TestRLMWrapper:
         wrapper = RLMWrapper(client, root_model="m")
         wrapper.generate("q", "ctx", on_event=lambda e: events.append(e.type))
         assert "final_answer" in events
+
+    def test_cost_property(self):
+        """response.cost computes from token counts and configured pricing."""
+        client = MockClient(["FINAL(ok)"])
+        config = RLMConfig(
+            cost_per_input_token=2.50 / 1_000_000,
+            cost_per_output_token=10.0 / 1_000_000,
+        )
+        wrapper = RLMWrapper(client, root_model="m", config=config)
+        resp = wrapper.generate("q", "ctx")
+        assert resp.cost > 0
+        expected = (
+            resp.total_input_tokens * config.cost_per_input_token
+            + resp.total_output_tokens * config.cost_per_output_token
+        )
+        assert abs(resp.cost - expected) < 1e-12
+
+    def test_cost_zero_without_pricing(self):
+        """response.cost is 0.0 when no pricing is configured."""
+        client = MockClient(["FINAL(ok)"])
+        wrapper = RLMWrapper(client, root_model="m")
+        resp = wrapper.generate("q", "ctx")
+        assert resp.cost == 0.0
+
+    def test_final_var_missing_variable_feedback(self):
+        """When FINAL_VAR references nonexistent var, model gets feedback."""
+        client = MockClient(
+            [
+                "FINAL_VAR(nonexistent)",
+                "```repl\nresult = 'fixed'\n```\nFINAL_VAR(result)",
+            ]
+        )
+        config = RLMConfig(max_iterations=5)
+        wrapper = RLMWrapper(client, root_model="m", config=config)
+        resp = wrapper.generate("q", "ctx")
+        assert resp.answer == "fixed"
+        assert resp.iterations == 2

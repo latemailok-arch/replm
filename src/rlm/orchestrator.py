@@ -59,6 +59,13 @@ class Orchestrator:
 
         config = self._config
 
+        if config.verbose:
+            logging.basicConfig(
+                level=logging.INFO,
+                format="%(name)s %(levelname)s: %(message)s",
+            )
+            logger.setLevel(logging.INFO)
+
         # -- 1. Sub-call manager + REPL initialization -----------------------
         sub_mgr = SubCallManager(self._client, config, self._sub_model)
         sub_mgr.set_event_callback(on_event)
@@ -160,17 +167,26 @@ class Orchestrator:
                 )
 
             # -- 3e. Check for FINAL_VAR or ``Final`` variable after code ran
-            if parsed.final_var is not None and repl.has_variable(parsed.final_var):
-                return self._build_response(
-                    answer=str(repl.get_variable(parsed.final_var)),
-                    iterations=iteration,
-                    sub_mgr=sub_mgr,
-                    root_input_tokens=root_input_tokens,
-                    root_output_tokens=root_output_tokens,
-                    history=history,
-                    repl=repl,
-                    on_event=on_event,
-                )
+            if parsed.final_var is not None:
+                if repl.has_variable(parsed.final_var):
+                    return self._build_response(
+                        answer=str(repl.get_variable(parsed.final_var)),
+                        iterations=iteration,
+                        sub_mgr=sub_mgr,
+                        root_input_tokens=root_input_tokens,
+                        root_output_tokens=root_output_tokens,
+                        history=history,
+                        repl=repl,
+                        on_event=on_event,
+                    )
+                else:
+                    # Tell the model the variable doesn't exist so it can fix it.
+                    available = ", ".join(repl.variable_names) or "(none)"
+                    combined_stdout += (
+                        f"\n[Error] FINAL_VAR referenced '{parsed.final_var}' "
+                        f"but no such variable exists. "
+                        f"Available variables: [{available}]"
+                    )
 
             if repl.has_variable("Final"):
                 answer = str(repl.get_variable("Final"))
@@ -309,6 +325,8 @@ class Orchestrator:
             sub_calls=sub_mgr.call_count,
             total_input_tokens=root_input_tokens + sub_mgr.total_input_tokens,
             total_output_tokens=root_output_tokens + sub_mgr.total_output_tokens,
+            cost_per_input_token=self._config.cost_per_input_token,
+            cost_per_output_token=self._config.cost_per_output_token,
             history=history,
             repl_variables=repl.variable_summaries,
         )

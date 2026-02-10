@@ -114,6 +114,26 @@ final_answer = llm_query(
 )
 ```
 
+You can also use code to filter the context before sub-calling. For example, \
+use regex to find relevant sections and only process those:
+
+```repl
+import re
+# Find all sections mentioning a specific topic
+matches = [(i, m.start()) for i, line in enumerate(context.split("\\n"))
+           for m in re.finditer(r"climate|emissions|carbon", line, re.IGNORECASE)]
+print(f"Found {{len(matches)}} matching lines")
+# Gather the relevant chunks around each match
+relevant = []
+lines = context.split("\\n")
+for line_idx, _ in matches[:50]:
+    start = max(0, line_idx - 2)
+    end = min(len(lines), line_idx + 3)
+    relevant.append("\\n".join(lines[start:end]))
+combined = "\\n---\\n".join(relevant)
+answer = llm_query(f"Based on these excerpts, answer: {{query}}\\n\\n{{combined}}")
+```
+
 IMPORTANT: When you are done with the iterative process, you MUST provide a \
 final answer inside a FINAL function when you have completed your task, NOT \
 in code. Do not use these tags unless you have completed your task. You have \
