@@ -94,6 +94,7 @@ class Orchestrator:
             context=context,
             llm_query_fn=llm_query_fn,
             timeout=config.sandbox_timeout,
+            sandbox_mode=config.sandbox_mode,
         )
 
         # -- 2. System prompt with metadata (NOT the context!) ---------------

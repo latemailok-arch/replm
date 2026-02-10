@@ -59,6 +59,23 @@ class RLMConfig:
     sandbox_timeout: int = 120
     """Timeout (seconds) per REPL execution."""
 
+    sandbox_mode: str = "restricted"
+    """Sandbox mode for REPL code execution.
+
+    Supported values:
+
+    - ``"restricted"`` (default): In-process sandbox with safe ``__builtins__``
+      and an import whitelist.  Blocks ``os``, ``subprocess``, ``sys``,
+      ``shutil``, file I/O, and networking while allowing standard-library
+      modules needed for data processing (``re``, ``json``, ``itertools``,
+      ``datetime``, etc.).
+    - ``"subprocess"``: Code runs in a child process with real timeout
+      enforcement via ``process.kill()``.  Sub-call functions (``llm_query``,
+      ``llm_query_batch``) are proxied through IPC.
+    - ``"none"``: No restrictions.  Code runs with full access to the Python
+      runtime.  Use only in trusted environments.
+    """
+
     prompt_variant: str = "default"
     """Prompt variant controlling model-specific system prompt behaviour.
 
@@ -97,9 +114,20 @@ class RLMConfig:
         repr=False,
     )
 
+    _VALID_SANDBOX_MODES: frozenset[str] = field(
+        default=frozenset({"restricted", "subprocess", "none"}),
+        init=False,
+        repr=False,
+    )
+
     def __post_init__(self) -> None:
         if self.prompt_variant not in self._VALID_PROMPT_VARIANTS:
             raise ValueError(
                 f"Unknown prompt_variant {self.prompt_variant!r}. "
                 f"Must be one of {sorted(self._VALID_PROMPT_VARIANTS)}"
+            )
+        if self.sandbox_mode not in self._VALID_SANDBOX_MODES:
+            raise ValueError(
+                f"Unknown sandbox_mode {self.sandbox_mode!r}. "
+                f"Must be one of {sorted(self._VALID_SANDBOX_MODES)}"
             )

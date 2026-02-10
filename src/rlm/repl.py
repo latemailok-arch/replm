@@ -18,6 +18,8 @@ import traceback
 from collections.abc import Callable
 from typing import Any
 
+from .sandbox.restricted import build_safe_builtins
+
 _INJECTED_NAMES = frozenset(
     {
         "context",
@@ -47,6 +49,9 @@ class REPLEnvironment:
         sub-calls.  ``None`` by default; injected by the async orchestrator.
     timeout:
         Per-execution timeout in seconds.
+    sandbox_mode:
+        Sandbox mode: ``"restricted"`` (default), ``"subprocess"``, or
+        ``"none"``.
     """
 
     def __init__(
@@ -56,7 +61,9 @@ class REPLEnvironment:
         *,
         llm_query_batch_fn: Callable[[list[str]], list[str]] | None = None,
         timeout: int = 120,
+        sandbox_mode: str = "restricted",
     ) -> None:
+        self._sandbox_mode = sandbox_mode
         self._namespace: dict[str, Any] = {
             "context": context,
             # Pre-loaded standard-library modules.
@@ -69,6 +76,8 @@ class REPLEnvironment:
             self._namespace["llm_query"] = llm_query_fn
         if llm_query_batch_fn is not None:
             self._namespace["llm_query_batch"] = llm_query_batch_fn
+        if sandbox_mode == "restricted":
+            self._namespace["__builtins__"] = build_safe_builtins()
         self._timeout = timeout
 
     def execute(self, code: str) -> tuple[str, bool]:
