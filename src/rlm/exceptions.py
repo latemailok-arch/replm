@@ -22,9 +22,7 @@ class MaxSubCallsExceeded(RLMError):
     def __init__(self, call_count: int, max_sub_calls: int) -> None:
         self.call_count = call_count
         self.max_sub_calls = max_sub_calls
-        super().__init__(
-            f"Sub-call limit reached: {call_count}/{max_sub_calls}"
-        )
+        super().__init__(f"Sub-call limit reached: {call_count}/{max_sub_calls}")
 
 
 class REPLExecutionError(RLMError):

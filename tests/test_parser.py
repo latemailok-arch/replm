@@ -34,7 +34,7 @@ class TestCodeBlockExtraction:
         assert parsed.code_blocks[0].strip() == ""
 
     def test_ignores_other_language_fences(self):
-        text = "```json\n{\"key\": \"value\"}\n```"
+        text = '```json\n{"key": "value"}\n```'
         parsed = parse_response(text)
         assert len(parsed.code_blocks) == 0
 
