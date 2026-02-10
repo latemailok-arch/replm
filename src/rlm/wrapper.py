@@ -77,3 +77,26 @@ class RLMWrapper:
             sub_model=self._sub_model,
         )
         return orchestrator.run(query=query, context=context, on_event=on_event)
+
+    async def agenerate(
+        self,
+        query: str,
+        context: str | list[str],
+        on_event: Callable[[RLMEvent], None] | None = None,
+    ) -> RLMResponse:
+        """Async version of :meth:`generate`.
+
+        Uses :class:`~rlm.async_orchestrator.AsyncOrchestrator` under the
+        hood.  The *client* must be an async-compatible client (e.g.
+        ``openai.AsyncOpenAI``).  Sub-calls are dispatched concurrently via
+        ``asyncio.gather``, and ``llm_query_batch`` is available in the REPL.
+        """
+        from .async_orchestrator import AsyncOrchestrator
+
+        orchestrator = AsyncOrchestrator(
+            client=self._client,
+            config=self._config,
+            root_model=self._root_model,
+            sub_model=self._sub_model,
+        )
+        return await orchestrator.run(query=query, context=context, on_event=on_event)

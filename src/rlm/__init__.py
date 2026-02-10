@@ -13,6 +13,7 @@ Basic usage::
     print(response.answer)
 """
 
+from .async_orchestrator import AsyncOrchestrator
 from .budget import SharedBudget
 from .config import RLMConfig
 from .exceptions import (
@@ -32,6 +33,7 @@ __all__ = [
     "RLMEvent",
     "HistoryEntry",
     "SharedBudget",
+    "AsyncOrchestrator",
     "RLMError",
     "MaxIterationsExceeded",
     "MaxSubCallsExceeded",
