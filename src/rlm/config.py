@@ -46,6 +46,20 @@ class RLMConfig:
     sandbox_timeout: int = 120
     """Timeout (seconds) per REPL execution."""
 
+    prompt_variant: str = "default"
+    """Prompt variant controlling model-specific system prompt behaviour.
+
+    Supported values:
+
+    - ``"default"``: Standard prompt (best for GPT-5, GPT-4.1, Claude, etc.)
+    - ``"cost_warning"``: Adds a warning about sub-call costs and batching
+      guidance.  Best for models that tend to make excessive sub-calls
+      (e.g. Qwen3-Coder).
+    - ``"small_context"``: Reduces context-limit descriptions to ~32k tokens,
+      uses smaller chunk sizes in examples, and adds token-limit warnings.
+      Best for small models (e.g. Qwen3-8B).
+    """
+
     verbose: bool = False
     """Print debug logs to stderr."""
 
@@ -63,3 +77,16 @@ class RLMConfig:
 
     _extras: dict[str, object] = field(default_factory=dict, repr=False)
     """Reserved for future extensions without breaking the API."""
+
+    _VALID_PROMPT_VARIANTS: frozenset[str] = field(
+        default=frozenset({"default", "cost_warning", "small_context"}),
+        init=False,
+        repr=False,
+    )
+
+    def __post_init__(self) -> None:
+        if self.prompt_variant not in self._VALID_PROMPT_VARIANTS:
+            raise ValueError(
+                f"Unknown prompt_variant {self.prompt_variant!r}. "
+                f"Must be one of {sorted(self._VALID_PROMPT_VARIANTS)}"
+            )

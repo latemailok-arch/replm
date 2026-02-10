@@ -1,5 +1,7 @@
 """Tests for rlm.prompt."""
 
+import pytest
+
 from rlm.config import RLMConfig
 from rlm.prompt import build_nudge_prompt, build_root_system_prompt
 
@@ -67,6 +69,100 @@ class TestBuildRootSystemPrompt:
         )
         assert "list of 5 strings" in prompt
         assert "100,000 total characters" in prompt
+
+    def test_default_chunk_peek(self):
+        prompt = self._build()
+        assert "context[:10000]" in prompt
+
+    def test_include_batch_fn(self):
+        config = RLMConfig()
+        prompt = build_root_system_prompt(
+            context_type="string",
+            context_total_length=1000,
+            context_lengths=[1000],
+            config=config,
+            include_batch_fn=True,
+        )
+        assert "llm_query_batch" in prompt
+        assert "parallel" in prompt
+
+    def test_no_batch_fn_by_default(self):
+        prompt = self._build()
+        assert "llm_query_batch" not in prompt
+
+
+class TestPromptVariants:
+    def _build(self, variant, **kwargs):
+        config = RLMConfig(prompt_variant=variant, **kwargs)
+        return build_root_system_prompt(
+            context_type="string",
+            context_total_length=50_000,
+            context_lengths=[50_000],
+            config=config,
+        )
+
+    def test_default_variant_no_cost_warning(self):
+        prompt = self._build("default")
+        assert "incurs high runtime costs" not in prompt
+        assert "~32k tokens" not in prompt
+
+    def test_default_variant_has_standard_capacity(self):
+        prompt = self._build("default")
+        assert "500,000" in prompt
+        assert "10 documents per sub-LLM query" in prompt
+        assert "context[:10000]" in prompt
+
+    def test_cost_warning_variant(self):
+        prompt = self._build("cost_warning")
+        assert "incurs high runtime costs" in prompt
+        assert "~200k characters per call" in prompt
+        assert "batching related information together" in prompt
+
+    def test_cost_warning_retains_standard_capacity(self):
+        prompt = self._build("cost_warning")
+        assert "500,000" in prompt
+        assert "context[:10000]" in prompt
+        assert "10 documents per sub-LLM query" in prompt
+
+    def test_cost_warning_no_32k(self):
+        prompt = self._build("cost_warning")
+        assert "~32k tokens" not in prompt
+
+    def test_small_context_variant_token_warning(self):
+        prompt = self._build("small_context")
+        assert "~32k tokens" in prompt
+        assert "be conservative" in prompt
+
+    def test_small_context_variant_capacity(self):
+        prompt = self._build("small_context")
+        assert "~100k chars, roughly 32k tokens" in prompt
+
+    def test_small_context_variant_batching(self):
+        prompt = self._build("small_context")
+        assert "2-3 documents per sub-LLM query" in prompt
+        assert "10 documents per sub-LLM query" not in prompt
+
+    def test_small_context_variant_chunk_peek(self):
+        prompt = self._build("small_context")
+        assert "context[:1000]" in prompt
+        assert "context[:10000]" not in prompt
+
+    def test_small_context_variant_cost_warning(self):
+        prompt = self._build("small_context")
+        assert "~10k-15k characters per call" in prompt
+        assert "~32k token limit" in prompt
+
+    def test_small_context_variant_final_instruction(self):
+        prompt = self._build("small_context")
+        assert "NOT in code or repl tags" in prompt
+
+    def test_small_context_24k_chars(self):
+        prompt = self._build("small_context")
+        assert "~24k characters" in prompt
+
+    def test_invalid_variant_raises(self):
+        with pytest.raises(ValueError, match="Unknown prompt_variant"):
+            RLMConfig(prompt_variant="nonexistent")
 
 
 class TestBuildNudgePrompt:
