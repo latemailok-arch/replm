@@ -1,4 +1,7 @@
-# rlm
+# replm = REPL + LM
+
+**What is replm?**
+replm is a lightweight Python library that wraps any OpenAI-compatible client and turns your LLM into an RLM.
 
 **Recursive Language Models** — process arbitrarily long prompts by offloading context into a REPL and enabling symbolic recursion via sub-LLM calls.
 
@@ -49,7 +52,7 @@ Or from source with development dependencies:
 uv sync --group dev
 ```
 
-**Requirements:** Python 3.10+ and an OpenAI-compatible client (`openai` package).
+**Requirements:** Python 3.10+. The `openai` package is needed for OpenAI-compatible providers; alternatively, implement the `LLMClient` protocol for any other backend.
 
 ## Quick Start
 
@@ -144,6 +147,23 @@ client = RLMWrapper(
 )
 ```
 
+### Custom providers
+
+For non-OpenAI backends, implement the `LLMClient` protocol directly:
+
+```python
+from rlm import RLMWrapper, CompletionResult
+
+class MyClient:
+    def complete(self, model, messages, temperature, max_tokens):
+        # Call your LLM here
+        return CompletionResult(content="...", input_tokens=0, output_tokens=0)
+
+client = RLMWrapper(MyClient(), root_model="my-model")
+```
+
+OpenAI SDK clients are auto-wrapped in `OpenAIAdapter` — no changes needed for existing code.
+
 ### Multi-document context
 
 Pass a list of strings to process many documents:
@@ -181,24 +201,26 @@ config = RLMConfig(enable_sub_calls=False)
 
 All options live in `RLMConfig`:
 
-| Parameter                  | Default     | Description                                             |
-| -------------------------- | ----------- | ------------------------------------------------------- |
-| `max_iterations`           | `25`        | Max REPL loop iterations for the root model             |
-| `max_sub_calls`            | `500`       | Max total sub-LLM calls per generation                  |
-| `max_recursion_depth`      | `1`         | Nesting depth (1 = plain sub-calls, 2+ = recursive)    |
-| `enable_sub_calls`         | `True`      | Set `False` for the no-sub-calls ablation               |
-| `metadata_prefix_chars`    | `1000`      | Characters of stdout shown to the root model            |
-| `sub_call_max_input_chars` | `500000`    | Max chars per sub-call input                            |
-| `temperature`              | `0.6`       | Root model temperature                                  |
-| `sub_temperature`          | `0.4`       | Sub-call temperature                                    |
-| `root_max_tokens`          | `16384`     | Max output tokens per root iteration                    |
-| `sub_max_tokens`           | `8192`      | Max output tokens per sub-call                          |
-| `sandbox_timeout`          | `120`       | Timeout (seconds) per REPL execution                    |
-| `sandbox_mode`             | `"restricted"` | `"restricted"`, `"subprocess"`, or `"none"`          |
-| `prompt_variant`           | `"default"` | `"default"`, `"cost_warning"`, or `"small_context"`     |
-| `cost_per_input_token`     | `0.0`       | USD per input token (enables `response.cost`)           |
-| `cost_per_output_token`    | `0.0`       | USD per output token (enables `response.cost`)          |
-| `verbose`                  | `False`     | Print debug logs                                        |
+| Parameter                  | Default        | Description                                         |
+| -------------------------- | -------------- | --------------------------------------------------- |
+| `max_iterations`           | `25`           | Max REPL loop iterations for the root model         |
+| `max_sub_calls`            | `500`          | Max total sub-LLM calls per generation              |
+| `max_recursion_depth`      | `1`            | Nesting depth (1 = plain sub-calls, 2+ = recursive) |
+| `cache_sub_calls`          | `False`        | Cache identical sub-call prompts within a run       |
+| `enable_sub_calls`         | `True`         | Set `False` for the no-sub-calls ablation           |
+| `metadata_prefix_chars`    | `1000`         | Characters of stdout shown to the root model        |
+| `sub_call_max_input_chars` | `500000`       | Max chars per sub-call input                        |
+| `temperature`              | `0.6`          | Root model temperature                              |
+| `sub_temperature`          | `0.4`          | Sub-call temperature                                |
+| `reasoning_effort`         | `None`         | Root model reasoning effort (`"low"`, `"medium"`, `"high"`) |
+| `root_max_tokens`          | `16384`        | Max output tokens per root iteration                |
+| `sub_max_tokens`           | `8192`         | Max output tokens per sub-call                      |
+| `sandbox_timeout`          | `120`          | Timeout (seconds) per REPL execution                |
+| `sandbox_mode`             | `"restricted"` | `"restricted"`, `"subprocess"`, or `"none"`         |
+| `prompt_variant`           | `"default"`    | `"default"`, `"cost_warning"`, or `"small_context"` |
+| `cost_per_input_token`     | `0.0`          | USD per input token (enables `response.cost`)       |
+| `cost_per_output_token`    | `0.0`          | USD per output token (enables `response.cost`)      |
+| `verbose`                  | `False`        | Print debug logs                                    |
 
 ## Response Object
 
@@ -208,6 +230,7 @@ All options live in `RLMConfig`:
 - `iterations` — number of root loop iterations
 - `sub_calls` — total sub-LLM invocations
 - `total_input_tokens` / `total_output_tokens` — aggregated token usage
+- `cache_hits` — sub-call cache hits (when `cache_sub_calls=True`)
 - `cost` — estimated USD cost (based on configured per-token pricing)
 - `elapsed_seconds` — wall-clock time for the generation
 - `history` — full execution trace (`list[HistoryEntry]`)
@@ -253,12 +276,14 @@ config = RLMConfig(sandbox_mode="none")
 src/rlm/
 ├── __init__.py            # Public API
 ├── wrapper.py             # RLMWrapper — main entry point
+├── client.py              # LLMClient protocol + OpenAIAdapter
 ├── orchestrator.py        # Root REPL loop (Algorithm 1)
 ├── async_orchestrator.py  # Async variant with concurrent sub-calls
 ├── repl.py                # REPL environment: exec, variables
 ├── sub_caller.py          # Sub-LLM call manager (sync)
 ├── async_sub_caller.py    # Sub-LLM call manager (async)
 ├── budget.py              # SharedBudget for global sub-call limits
+├── cache.py               # LRU cache for sub-call responses
 ├── parser.py              # Parse code blocks + FINAL directives
 ├── prompt.py              # System prompt templates (Appendix C.1)
 ├── metadata.py            # Truncation logic
@@ -300,8 +325,6 @@ uv run mypy src/
 
 - External sandboxing backends (Docker, E2B)
 - Token-by-token streaming of root model output
-- Caching of sub-call results
-- Provider abstraction (Anthropic, Google, local models)
 - OpenTelemetry integration
 
 ## Citations
