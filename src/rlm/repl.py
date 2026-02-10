@@ -79,6 +79,20 @@ class REPLEnvironment:
         if sandbox_mode == "restricted":
             self._namespace["__builtins__"] = build_safe_builtins()
         self._timeout = timeout
+        self._llm_query_fn = llm_query_fn
+        self._llm_query_batch_fn = llm_query_batch_fn
+
+        # Subprocess executor — lazily started on first execute().
+        self._subprocess: SubprocessExecutor | None = None
+        if sandbox_mode == "subprocess":
+            from .sandbox.subprocess_executor import SubprocessExecutor
+
+            self._subprocess = SubprocessExecutor(timeout=timeout)
+            self._subprocess.start(
+                context=context,
+                has_llm_query=llm_query_fn is not None,
+                has_llm_query_batch=llm_query_batch_fn is not None,
+            )
 
     def execute(self, code: str) -> tuple[str, bool]:
         """Execute *code* in the persistent namespace.
@@ -91,6 +105,43 @@ class REPLEnvironment:
         * Exceptions are caught and returned as part of stdout so the model
           can self-correct.
         """
+        if self._subprocess is not None:
+            return self._execute_subprocess(code)
+        return self._execute_threaded(code)
+
+    def _execute_subprocess(self, code: str) -> tuple[str, bool]:
+        """Execute via the subprocess executor with IPC-based sub-call proxying."""
+        assert self._subprocess is not None
+        if not self._subprocess.is_alive():
+            # Restart if previous execution killed the child (e.g. timeout).
+            from .sandbox.subprocess_executor import SubprocessExecutor
+
+            self._subprocess = SubprocessExecutor(timeout=self._timeout)
+            self._subprocess.start(
+                context=self._namespace["context"],
+                has_llm_query=self._llm_query_fn is not None,
+                has_llm_query_batch=self._llm_query_batch_fn is not None,
+            )
+            # Re-inject user variables into the fresh child.
+            var_code = ""
+            for name in self.variable_names:
+                val = self._namespace[name]
+                var_code += f"{name} = {val!r}\n"
+            if var_code:
+                self._subprocess.execute(var_code)
+
+        stdout, had_error, updated_vars = self._subprocess.execute(
+            code,
+            llm_query_fn=self._llm_query_fn,
+            llm_query_batch_fn=self._llm_query_batch_fn,
+        )
+        # Merge updated variables back into our namespace.
+        for k, v in updated_vars.items():
+            self._namespace[k] = v
+        return stdout, had_error
+
+    def _execute_threaded(self, code: str) -> tuple[str, bool]:
+        """Execute in-process with a timeout thread."""
         buf = io.StringIO()
         had_error = False
 

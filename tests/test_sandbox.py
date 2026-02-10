@@ -1,4 +1,4 @@
-"""Tests for sandbox modes (restricted, none)."""
+"""Tests for sandbox modes (restricted, subprocess, none)."""
 
 import pytest
 
@@ -231,3 +231,123 @@ class TestAllowedModules:
     def test_dangerous_modules_absent(self):
         for mod in ("os", "subprocess", "sys", "shutil", "socket", "http"):
             assert mod not in ALLOWED_MODULES
+
+
+# ---------------------------------------------------------------------------
+# Subprocess mode
+# ---------------------------------------------------------------------------
+
+
+def _echo_llm_query(prompt: str) -> str:
+    return f"echo: {prompt[:50]}"
+
+
+def _echo_llm_query_batch(prompts: list[str]) -> list[str]:
+    return [f"echo: {p[:50]}" for p in prompts]
+
+
+class TestSubprocessBasic:
+    def test_basic_execution(self):
+        repl = REPLEnvironment("hello world", sandbox_mode="subprocess")
+        stdout, had_error = repl.execute("print(len(context))")
+        assert not had_error
+        assert "11" in stdout
+
+    def test_variable_persistence(self):
+        repl = REPLEnvironment("ctx", sandbox_mode="subprocess")
+        repl.execute("x = 42")
+        stdout, had_error = repl.execute("print(x)")
+        assert not had_error
+        assert "42" in stdout
+
+    def test_context_accessible(self):
+        repl = REPLEnvironment("test data", sandbox_mode="subprocess")
+        stdout, had_error = repl.execute("print(context)")
+        assert not had_error
+        assert "test data" in stdout
+
+    def test_list_context(self):
+        repl = REPLEnvironment(["a", "bb"], sandbox_mode="subprocess")
+        stdout, had_error = repl.execute("print(len(context))")
+        assert not had_error
+        assert "2" in stdout
+
+    def test_preloaded_modules(self):
+        repl = REPLEnvironment("ctx", sandbox_mode="subprocess")
+        stdout, had_error = repl.execute("print(re.findall(r'\\d+', 'a1b2'))")
+        assert not had_error
+        assert "['1', '2']" in stdout
+
+    def test_error_handling(self):
+        repl = REPLEnvironment("ctx", sandbox_mode="subprocess")
+        stdout, had_error = repl.execute("x = 1/0")
+        assert had_error
+        assert "ZeroDivisionError" in stdout
+
+    def test_has_variable(self):
+        repl = REPLEnvironment("ctx", sandbox_mode="subprocess")
+        repl.execute("result = 'done'")
+        assert repl.has_variable("result")
+        assert repl.get_variable("result") == "done"
+
+    def test_variable_names(self):
+        repl = REPLEnvironment("ctx", sandbox_mode="subprocess")
+        repl.execute("x = 1\ny = 2")
+        names = repl.variable_names
+        assert "x" in names
+        assert "y" in names
+        assert "context" not in names
+
+
+class TestSubprocessSecurity:
+    def test_blocks_os_import(self):
+        repl = REPLEnvironment("ctx", sandbox_mode="subprocess")
+        stdout, had_error = repl.execute("import os")
+        assert had_error
+        assert "ImportError" in stdout
+
+    def test_blocks_subprocess_import(self):
+        repl = REPLEnvironment("ctx", sandbox_mode="subprocess")
+        stdout, had_error = repl.execute("import subprocess")
+        assert had_error
+        assert "ImportError" in stdout
+
+
+class TestSubprocessTimeout:
+    def test_timeout_kills_process(self):
+        repl = REPLEnvironment("ctx", sandbox_mode="subprocess", timeout=2)
+        stdout, had_error = repl.execute("import time; time.sleep(30)")
+        assert had_error
+        assert "timed out" in stdout
+
+    def test_recovers_after_timeout(self):
+        repl = REPLEnvironment("ctx", sandbox_mode="subprocess", timeout=2)
+        repl.execute("import time; time.sleep(30)")  # times out, kills child
+        # Should recover — new child spawned automatically.
+        stdout, had_error = repl.execute("print('recovered')")
+        assert not had_error
+        assert "recovered" in stdout
+
+
+class TestSubprocessLlmQuery:
+    def test_llm_query_ipc(self):
+        repl = REPLEnvironment(
+            "ctx", _echo_llm_query, sandbox_mode="subprocess"
+        )
+        stdout, had_error = repl.execute("result = llm_query('hello')\nprint(result)")
+        assert not had_error
+        assert "echo: hello" in stdout
+
+    def test_llm_query_batch_ipc(self):
+        repl = REPLEnvironment(
+            "ctx",
+            _echo_llm_query,
+            llm_query_batch_fn=_echo_llm_query_batch,
+            sandbox_mode="subprocess",
+        )
+        stdout, had_error = repl.execute(
+            "results = llm_query_batch(['a', 'b'])\nprint(results)"
+        )
+        assert not had_error
+        assert "echo: a" in stdout
+        assert "echo: b" in stdout
