@@ -191,6 +191,7 @@ class TestCustomClient:
                 messages: list[dict[str, str]],
                 temperature: float,
                 max_tokens: int,
+                **kwargs: Any,
             ) -> CompletionResult:
                 return CompletionResult(
                     content="FINAL(custom answer)",

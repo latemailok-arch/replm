@@ -146,6 +146,7 @@ class AsyncOrchestrator:
                 messages=messages,
                 temperature=config.temperature,
                 max_tokens=config.root_max_tokens,
+                reasoning_effort=config.reasoning_effort,
             )
 
             assistant_text: str = result.content
@@ -303,6 +304,7 @@ class AsyncOrchestrator:
             messages=messages,
             temperature=config.temperature,
             max_tokens=config.root_max_tokens,
+            reasoning_effort=config.reasoning_effort,
         )
 
         text: str = result.content

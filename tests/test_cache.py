@@ -143,6 +143,7 @@ class _MockClient:
         messages: list[dict[str, str]],
         temperature: float,
         max_tokens: int,
+        **kwargs: Any,
     ) -> CompletionResult:
         self.calls.append(
             {
@@ -163,11 +164,11 @@ class TestCacheIntegration:
             [
                 # Root iteration 1: code calling llm_query twice with same prompt
                 (
-                    '```repl\n'
+                    "```repl\n"
                     'r1 = llm_query("what is 2+2")\n'
                     'r2 = llm_query("what is 2+2")\n'
-                    'print(r1, r2)\n'
-                    '```'
+                    "print(r1, r2)\n"
+                    "```"
                 ),
                 # Sub-call response (only one needed with cache)
                 "four",
@@ -191,11 +192,11 @@ class TestCacheIntegration:
         client = _MockClient(
             [
                 (
-                    '```repl\n'
+                    "```repl\n"
                     'r1 = llm_query("what is 2+2")\n'
                     'r2 = llm_query("what is 2+2")\n'
-                    'print(r1, r2)\n'
-                    '```'
+                    "print(r1, r2)\n"
+                    "```"
                 ),
                 "four",  # sub-call 1
                 "four",  # sub-call 2 (no cache)
@@ -218,13 +219,13 @@ class TestCacheIntegration:
         client = _MockClient(
             [
                 (
-                    '```repl\n'
+                    "```repl\n"
                     'r1 = llm_query("a")\n'
                     'r2 = llm_query("b")\n'
                     'r3 = llm_query("a")\n'
                     'r4 = llm_query("b")\n'
                     'r5 = llm_query("a")\n'
-                    '```'
+                    "```"
                 ),
                 "resp_a",  # sub-call for "a"
                 "resp_b",  # sub-call for "b"
@@ -246,12 +247,7 @@ class TestCacheIntegration:
         """Different prompts produce separate API calls."""
         client = _MockClient(
             [
-                (
-                    '```repl\n'
-                    'r1 = llm_query("alpha")\n'
-                    'r2 = llm_query("beta")\n'
-                    '```'
-                ),
+                ('```repl\nr1 = llm_query("alpha")\nr2 = llm_query("beta")\n```'),
                 "resp_alpha",
                 "resp_beta",
                 "FINAL(done)",
@@ -274,12 +270,7 @@ class TestCacheEvent:
         events: list[RLMEvent] = []
         client = _MockClient(
             [
-                (
-                    '```repl\n'
-                    'r1 = llm_query("same")\n'
-                    'r2 = llm_query("same")\n'
-                    '```'
-                ),
+                ('```repl\nr1 = llm_query("same")\nr2 = llm_query("same")\n```'),
                 "response",
                 "FINAL(done)",
             ]
@@ -299,12 +290,7 @@ class TestCacheEvent:
         events: list[RLMEvent] = []
         client = _MockClient(
             [
-                (
-                    '```repl\n'
-                    'r1 = llm_query("same")\n'
-                    'r2 = llm_query("same")\n'
-                    '```'
-                ),
+                ('```repl\nr1 = llm_query("same")\nr2 = llm_query("same")\n```'),
                 "response1",
                 "response2",
                 "FINAL(done)",

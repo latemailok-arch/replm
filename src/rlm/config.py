@@ -57,6 +57,14 @@ class RLMConfig:
     sub_temperature: float = 0.4
     """Sub-call temperature."""
 
+    reasoning_effort: str | None = None
+    """Reasoning effort for the root model (e.g. ``"low"``, ``"medium"``, ``"high"``).
+
+    When set, passed as ``reasoning_effort`` to the chat completions API.
+    Only affects root model calls — sub-calls are not affected.
+    Set to ``None`` (default) to omit the parameter entirely.
+    """
+
     root_max_tokens: int = 16_384
     """Max output tokens per root iteration."""
 

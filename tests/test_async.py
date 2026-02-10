@@ -30,6 +30,7 @@ class AsyncMockClient:
         messages: list[dict[str, str]],
         temperature: float,
         max_tokens: int,
+        **kwargs: Any,
     ) -> CompletionResult:
         self.calls.append(
             {
@@ -48,6 +49,7 @@ class AsyncMockClient:
         messages: list[dict[str, str]],
         temperature: float,
         max_tokens: int,
+        **kwargs: Any,
     ) -> CompletionResult:
         self.calls.append(
             {

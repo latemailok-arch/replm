@@ -30,6 +30,7 @@ class MockClient:
         messages: list[dict[str, str]],
         temperature: float,
         max_tokens: int,
+        **kwargs: Any,
     ) -> CompletionResult:
         self.calls.append(
             {

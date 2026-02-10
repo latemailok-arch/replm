@@ -129,9 +129,7 @@ class AsyncSubCallManager:
         # -- Check cache before consuming budget --------------------------------
         cache_key: str | None = None
         if self._cache is not None:
-            cache_key = SubCallCache.key(
-                self._model, prompt, self._config.sub_temperature
-            )
+            cache_key = SubCallCache.key(self._model, prompt, self._config.sub_temperature)
             cached = self._cache.get(cache_key)
             if cached is not None:
                 if self._event_callback:
