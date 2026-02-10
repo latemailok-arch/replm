@@ -25,9 +25,7 @@ client = RLMWrapper(
 )
 
 # Simulate a list of documents.
-documents = [
-    f"Document {i}: {'Lorem ipsum dolor sit amet. ' * 200}" for i in range(50)
-]
+documents = [f"Document {i}: {'Lorem ipsum dolor sit amet. ' * 200}" for i in range(50)]
 # Hide a fact in document 37.
 documents[37] = (
     "Document 37: The annual revenue of Acme Corp in 2024 was $4.2 billion. "

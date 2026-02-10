@@ -35,12 +35,12 @@ def _to_runner_tasks(agg_tasks: list) -> list[Task]:
     ]
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Run Synthetic Aggregation benchmark")
     parser.add_argument("--mode", choices=["base", "rlm", "both"], default="both")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--sizes", nargs="*", default=None)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     config = BenchmarkConfig()
     tasks = generate_tasks(seed=args.seed)

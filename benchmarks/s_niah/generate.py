@@ -45,7 +45,7 @@ NEEDLE_KEYS: list[str] = [
     "cinnamon",
     "silhouette",
     "barricade",
-    "telescope",
+    "prism",
     "hemisphere",
     "mandolin",
     "sandstone",

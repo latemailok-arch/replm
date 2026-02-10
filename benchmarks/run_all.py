@@ -9,7 +9,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import sys
 
 from .config import BenchmarkConfig
 from .plotting import plot_accuracy_vs_size, plot_iterations_vs_size, plot_tokens_vs_size
@@ -36,27 +35,25 @@ def main() -> None:
     config = BenchmarkConfig()
 
     if not args.plot_only:
-        run_args = ["--mode", args.mode, "--seed", str(args.seed)]
+        run_argv = ["--mode", args.mode, "--seed", str(args.seed)]
         if args.sizes:
-            run_args += ["--sizes"] + args.sizes
+            run_argv += ["--sizes"] + args.sizes
 
         if args.benchmark in ("s_niah", "all"):
             print("\n" + "=" * 60)
             print("  S-NIAH Benchmark")
             print("=" * 60)
-            sys.argv = ["benchmarks.s_niah.run"] + run_args
             from .s_niah.run import main as run_sniah
 
-            run_sniah()
+            run_sniah(run_argv)
 
         if args.benchmark in ("aggregation", "all"):
             print("\n" + "=" * 60)
             print("  Synthetic Aggregation Benchmark")
             print("=" * 60)
-            sys.argv = ["benchmarks.aggregation.run"] + run_args
             from .aggregation.run import main as run_agg
 
-            run_agg()
+            run_agg(run_argv)
 
     _generate_plots(config)
 

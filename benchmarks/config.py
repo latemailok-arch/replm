@@ -36,7 +36,7 @@ class BenchmarkConfig:
     sub_model: str = field(
         default_factory=lambda: os.environ.get(
             "SUB-MODEL",
-            os.environ.get("QWEN3-235b-a22b-instruct-MODEL", ""),  # noqa: SIM112
+            os.environ.get("GPT-OSS-120b-MODEL", ""),  # noqa: SIM112
         ),
     )
 

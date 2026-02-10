@@ -65,7 +65,7 @@ Each benchmark runs in two modes:
 
 ```bash
 # Install benchmark dependencies
-uv pip install -e ".[benchmarks]"
+uv sync --extra benchmarks
 
 # Copy and fill in your API credentials
 cp benchmarks/.env.example benchmarks/.env
