@@ -16,9 +16,10 @@ Basic usage::
 from .async_orchestrator import AsyncOrchestrator
 from .budget import SharedBudget
 from .cache import SubCallCache
-from .client import CompletionResult, LLMClient, OpenAIAdapter
+from .client import CompletionResult, ContentStream, LLMClient, OpenAIAdapter
 from .config import RLMConfig
 from .exceptions import MaxSubCallsExceeded, RLMError
+from .stream import StreamChunk
 from .types import HistoryEntry, RLMEvent, RLMResponse
 from .wrapper import RLMWrapper
 
@@ -30,6 +31,8 @@ __all__ = [
     "HistoryEntry",
     "SharedBudget",
     "SubCallCache",
+    "StreamChunk",
+    "ContentStream",
     "AsyncOrchestrator",
     "CompletionResult",
     "LLMClient",

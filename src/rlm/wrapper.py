@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from .config import RLMConfig
@@ -100,3 +100,37 @@ class RLMWrapper:
             sub_model=self._sub_model,
         )
         return await orchestrator.run(query=query, context=context, on_event=on_event)
+
+    async def astream_generate(
+        self,
+        query: str,
+        context: str | list[str],
+    ) -> AsyncIterator[Any]:
+        """Streaming async version of :meth:`generate`.
+
+        Yields :class:`~rlm.stream.StreamChunk` objects as the root model
+        produces tokens.  The final chunk (``type="final_answer"``) includes
+        the full :class:`RLMResponse` in ``detail["response"]``.
+
+        If the client supports native streaming (``astream()`` method), tokens
+        arrive in real-time.  Otherwise falls back to ``acomplete()`` and
+        yields the full response as a single token chunk.
+
+        Example::
+
+            async for chunk in wrapper.astream_generate("Summarize.", text):
+                if chunk.type == "token":
+                    print(chunk.content, end="", flush=True)
+                elif chunk.type == "final_answer":
+                    response = chunk.detail["response"]
+        """
+        from .stream import StreamOrchestrator
+
+        orchestrator = StreamOrchestrator(
+            client=self._client,
+            config=self._config,
+            root_model=self._root_model,
+            sub_model=self._sub_model,
+        )
+        async for chunk in orchestrator.run(query=query, context=context):
+            yield chunk
