@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import Any
 
 from .budget import SharedBudget
+from .cache import SubCallCache
 from .client import wrap_if_needed
 from .config import RLMConfig
 from .metadata import (
@@ -80,12 +81,14 @@ class Orchestrator:
             logger.setLevel(logging.INFO)
 
         # -- 1. Sub-call manager + REPL initialization -----------------------
+        cache = SubCallCache() if config.cache_sub_calls else None
         sub_mgr = SubCallManager(
             self._client,
             config,
             self._sub_model,
             budget=self._budget,
             depth=self._depth,
+            cache=cache,
         )
         sub_mgr.set_event_callback(on_event)
 
@@ -168,6 +171,7 @@ class Orchestrator:
                     repl=repl,
                     on_event=on_event,
                     start_time=start_time,
+                    cache=cache,
                 )
 
             # -- 3d. Execute code blocks in REPL -----------------------------
@@ -199,6 +203,7 @@ class Orchestrator:
                         repl=repl,
                         on_event=on_event,
                         start_time=start_time,
+                        cache=cache,
                     )
                 else:
                     # Tell the model the variable doesn't exist so it can fix it.
@@ -221,6 +226,7 @@ class Orchestrator:
                     repl=repl,
                     on_event=on_event,
                     start_time=start_time,
+                    cache=cache,
                 )
 
             # -- 3f. Truncated metadata of stdout ----------------------------
@@ -260,6 +266,7 @@ class Orchestrator:
             history=history,
             on_event=on_event,
             start_time=start_time,
+            cache=cache,
         )
 
     # -- Helpers -------------------------------------------------------------
@@ -274,6 +281,7 @@ class Orchestrator:
         history: list[HistoryEntry],
         on_event: Callable[[RLMEvent], None] | None,
         start_time: float = 0.0,
+        cache: SubCallCache | None = None,
     ) -> RLMResponse:
         """Send a nudge message and attempt to extract a final answer."""
         config = self._config
@@ -320,6 +328,7 @@ class Orchestrator:
             repl=repl,
             on_event=on_event,
             start_time=start_time,
+            cache=cache,
         )
 
     def _build_response(
@@ -333,6 +342,7 @@ class Orchestrator:
         repl: REPLEnvironment,
         on_event: Callable[[RLMEvent], None] | None,
         start_time: float = 0.0,
+        cache: SubCallCache | None = None,
     ) -> RLMResponse:
         if on_event:
             on_event(
@@ -351,6 +361,7 @@ class Orchestrator:
             sub_calls=sub_mgr.call_count,
             total_input_tokens=root_input_tokens + sub_mgr.total_input_tokens,
             total_output_tokens=root_output_tokens + sub_mgr.total_output_tokens,
+            cache_hits=cache.stats.hits if cache else 0,
             cost_per_input_token=self._config.cost_per_input_token,
             cost_per_output_token=self._config.cost_per_output_token,
             history=history,

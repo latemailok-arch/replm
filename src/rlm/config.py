@@ -29,6 +29,13 @@ class RLMConfig:
     global ``max_sub_calls`` limit applies across all depths.
     """
 
+    cache_sub_calls: bool = False
+    """Cache sub-call responses keyed on ``(model, prompt, temperature)``.
+
+    When enabled, identical sub-call prompts within the same generation run
+    return cached responses without consuming API calls or budget.
+    """
+
     enable_sub_calls: bool = True
     """Whether to enable sub-LLM calls (``llm_query``) in the REPL.
 

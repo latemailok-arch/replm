@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 from .budget import SharedBudget
+from .cache import SubCallCache
 from .config import RLMConfig
 from .types import RLMEvent
 
@@ -46,12 +47,14 @@ class SubCallManager:
         model: str,
         budget: SharedBudget | None = None,
         depth: int = 0,
+        cache: SubCallCache | None = None,
     ) -> None:
         self._client = client
         self._config = config
         self._model = model
         self._budget = budget or SharedBudget(max_sub_calls=config.max_sub_calls)
         self._depth = depth
+        self._cache = cache
         self._event_callback: Callable[[RLMEvent], None] | None = None
         self._current_iteration: int = 0
 
@@ -97,11 +100,34 @@ class SubCallManager:
 
     def _make_plain_query_fn(self) -> Callable[[str], str]:
         def llm_query(prompt: str) -> str:
-            self._budget.increment_call()
-
             if len(prompt) > self._config.sub_call_max_input_chars:
                 prompt = prompt[: self._config.sub_call_max_input_chars]
 
+            # -- Check cache before consuming budget ----------------------------
+            cache_key: str | None = None
+            if self._cache is not None:
+                cache_key = SubCallCache.key(
+                    self._model, prompt, self._config.sub_temperature
+                )
+                cached = self._cache.get(cache_key)
+                if cached is not None:
+                    if self._event_callback:
+                        self._event_callback(
+                            RLMEvent(
+                                type="sub_call_cache_hit",
+                                iteration=self._current_iteration,
+                                preview=f"Cache hit: {prompt[:80]}...",
+                                detail={
+                                    "prompt_len": len(prompt),
+                                    "depth": self._depth,
+                                },
+                                depth=self._depth,
+                            )
+                        )
+                    return cached
+
+            # -- Budget + API call ----------------------------------------------
+            self._budget.increment_call()
             count = self._budget.call_count
 
             if self._event_callback:
@@ -140,6 +166,10 @@ class SubCallManager:
 
             text: str = result.content
             self._budget.add_tokens(result.input_tokens, result.output_tokens)
+
+            # -- Store in cache -------------------------------------------------
+            if cache_key is not None:
+                self._cache.put(cache_key, text)
 
             if self._event_callback:
                 self._event_callback(

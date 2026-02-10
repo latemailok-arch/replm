@@ -42,6 +42,9 @@ class RLMResponse:
     total_output_tokens: int
     """Aggregated output tokens across all LLM calls (root + sub)."""
 
+    cache_hits: int = 0
+    """Number of sub-call cache hits (requires ``cache_sub_calls=True``)."""
+
     cost_per_input_token: float = 0.0
     """Cost per input token in USD (set via ``RLMConfig.cost_per_input_token``)."""
 
@@ -77,7 +80,8 @@ class RLMEvent:
     """Event type.
 
     One of: ``iteration_start``, ``code_generated``, ``code_executed``,
-    ``sub_call_start``, ``sub_call_end``, ``final_answer``.
+    ``sub_call_start``, ``sub_call_end``, ``sub_call_cache_hit``,
+    ``final_answer``.
     """
 
     iteration: int

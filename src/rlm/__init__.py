@@ -15,6 +15,7 @@ Basic usage::
 
 from .async_orchestrator import AsyncOrchestrator
 from .budget import SharedBudget
+from .cache import SubCallCache
 from .client import CompletionResult, LLMClient, OpenAIAdapter
 from .config import RLMConfig
 from .exceptions import MaxSubCallsExceeded, RLMError
@@ -28,6 +29,7 @@ __all__ = [
     "RLMEvent",
     "HistoryEntry",
     "SharedBudget",
+    "SubCallCache",
     "AsyncOrchestrator",
     "CompletionResult",
     "LLMClient",
