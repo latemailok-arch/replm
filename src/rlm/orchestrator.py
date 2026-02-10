@@ -130,20 +130,18 @@ class Orchestrator:
             # -- 3b. Parse response ------------------------------------------
             parsed = parse_response(assistant_text)
 
-            # -- 3c. Check for FINAL directive *before* executing code -------
-            if parsed.is_done:
-                answer = self._resolve_final(parsed, repl, iteration, history)
-                if answer is not None:
-                    return self._build_response(
-                        answer=answer,
-                        iterations=iteration,
-                        sub_mgr=sub_mgr,
-                        root_input_tokens=root_input_tokens,
-                        root_output_tokens=root_output_tokens,
-                        history=history,
-                        repl=repl,
-                        on_event=on_event,
-                    )
+            # -- 3c. Check for FINAL directive (direct answer, no code needed)
+            if parsed.final_answer is not None:
+                return self._build_response(
+                    answer=parsed.final_answer,
+                    iterations=iteration,
+                    sub_mgr=sub_mgr,
+                    root_input_tokens=root_input_tokens,
+                    root_output_tokens=root_output_tokens,
+                    history=history,
+                    repl=repl,
+                    on_event=on_event,
+                )
 
             # -- 3d. Execute code blocks in REPL -----------------------------
             combined_stdout = ""
@@ -161,7 +159,19 @@ class Orchestrator:
                     )
                 )
 
-            # Check if code set ``Final`` in the REPL namespace.
+            # -- 3e. Check for FINAL_VAR or ``Final`` variable after code ran
+            if parsed.final_var is not None and repl.has_variable(parsed.final_var):
+                return self._build_response(
+                    answer=str(repl.get_variable(parsed.final_var)),
+                    iterations=iteration,
+                    sub_mgr=sub_mgr,
+                    root_input_tokens=root_input_tokens,
+                    root_output_tokens=root_output_tokens,
+                    history=history,
+                    repl=repl,
+                    on_event=on_event,
+                )
+
             if repl.has_variable("Final"):
                 answer = str(repl.get_variable("Final"))
                 return self._build_response(
@@ -175,7 +185,7 @@ class Orchestrator:
                     on_event=on_event,
                 )
 
-            # -- 3e. Truncated metadata of stdout ----------------------------
+            # -- 3f. Truncated metadata of stdout ----------------------------
             truncated_stdout = make_metadata(combined_stdout, config.metadata_prefix_chars)
 
             # Record history.
@@ -196,7 +206,7 @@ class Orchestrator:
                 )
             )
 
-            # -- 3f. Append to message history for next turn -----------------
+            # -- 3g. Append to message history for next turn -----------------
             messages.append({"role": "assistant", "content": assistant_text})
 
             repl_label = "[REPL Output] " if combined_stdout else "[REPL] No output."
@@ -214,26 +224,6 @@ class Orchestrator:
         )
 
     # -- Helpers -------------------------------------------------------------
-
-    def _resolve_final(
-        self,
-        parsed: Any,
-        repl: REPLEnvironment,
-        iteration: int,
-        history: list[HistoryEntry],
-    ) -> str | None:
-        """Try to resolve a FINAL or FINAL_VAR directive to a string answer."""
-        if parsed.final_answer is not None:
-            return parsed.final_answer
-
-        if parsed.final_var is not None:
-            if repl.has_variable(parsed.final_var):
-                return str(repl.get_variable(parsed.final_var))
-            # Variable doesn't exist yet — let the model keep going so it can
-            # fix the reference.
-            return None
-
-        return None
 
     def _force_final(
         self,
