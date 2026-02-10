@@ -9,6 +9,7 @@ from typing import Any
 from .budget import SharedBudget
 from .cache import SubCallCache
 from .config import RLMConfig
+from .tracing import span
 from .types import RLMEvent
 
 logger = logging.getLogger(__name__)
@@ -152,18 +153,26 @@ class SubCallManager:
                     self._model,
                 )
 
-            result = self._client.complete(
-                model=self._model,
-                messages=[
-                    {"role": "system", "content": _SUB_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=self._config.sub_temperature,
-                max_tokens=self._config.sub_max_tokens,
-            )
+            with span(
+                "rlm.sub_call",
+                {"rlm.depth": self._depth, "rlm.prompt_len": len(prompt)},
+            ) as s:
+                result = self._client.complete(
+                    model=self._model,
+                    messages=[
+                        {"role": "system", "content": _SUB_SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=self._config.sub_temperature,
+                    max_tokens=self._config.sub_max_tokens,
+                )
 
-            text: str = result.content
-            self._budget.add_tokens(result.input_tokens, result.output_tokens)
+                text: str = result.content
+                self._budget.add_tokens(result.input_tokens, result.output_tokens)
+
+                if s is not None:
+                    s.set_attribute("rlm.input_tokens", result.input_tokens)
+                    s.set_attribute("rlm.output_tokens", result.output_tokens)
 
             # -- Store in cache -------------------------------------------------
             if cache_key is not None:
@@ -242,11 +251,21 @@ class SubCallManager:
                 depth=self._depth + 1,
             )
 
-            resp = inner_orch.run(
-                query=prompt,
-                context=prompt,
-                on_event=self._event_callback,
-            )
+            with span(
+                "rlm.sub_call",
+                {
+                    "rlm.depth": self._depth,
+                    "rlm.prompt_len": len(prompt),
+                    "rlm.recursive": True,
+                },
+            ) as s:
+                resp = inner_orch.run(
+                    query=prompt,
+                    context=prompt,
+                    on_event=self._event_callback,
+                )
+                if s is not None:
+                    s.set_attribute("rlm.inner_iterations", resp.iterations)
 
             # The inner orchestrator tracked its own root-model tokens locally
             # (not via the shared budget).  Add them so the caller's totals are

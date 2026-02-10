@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from rlm.client import CompletionResult
-from rlm.config import RLMConfig
-from rlm.orchestrator import Orchestrator
+from replm.client import CompletionResult
+from replm.config import RLMConfig
+from replm.orchestrator import Orchestrator
 
 # ---------------------------------------------------------------------------
 # Mock client implementing the LLMClient protocol
@@ -302,7 +302,7 @@ class TestDeepRecursion:
 
     def test_shared_budget_across_depths(self):
         """Sub-calls at different depths share a single budget."""
-        from rlm.budget import SharedBudget
+        from replm.budget import SharedBudget
 
         budget = SharedBudget(max_sub_calls=10)
         client = MockClient(
@@ -353,7 +353,7 @@ class TestDeepRecursion:
 
     def test_events_include_depth(self):
         """Events from sub-calls include the correct depth value."""
-        from rlm.types import RLMEvent
+        from replm.types import RLMEvent
 
         events: list[RLMEvent] = []
         client = MockClient(

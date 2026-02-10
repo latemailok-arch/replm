@@ -6,10 +6,10 @@ from typing import Any
 
 import pytest
 
-from rlm.client import CompletionResult, ContentStream
-from rlm.config import RLMConfig
-from rlm.stream import StreamChunk, StreamOrchestrator
-from rlm.wrapper import RLMWrapper
+from replm.client import CompletionResult, ContentStream
+from replm.config import RLMConfig
+from replm.stream import StreamChunk, StreamOrchestrator
+from replm.wrapper import RLMWrapper
 
 # ---------------------------------------------------------------------------
 # Async mock client with acomplete + optional astream

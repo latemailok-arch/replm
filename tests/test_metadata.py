@@ -1,6 +1,6 @@
 """Tests for rlm.metadata."""
 
-from rlm.metadata import (
+from replm.metadata import (
     context_chunk_lengths,
     context_total_length,
     context_type_label,

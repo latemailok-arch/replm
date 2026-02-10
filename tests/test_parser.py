@@ -1,6 +1,6 @@
 """Tests for rlm.parser."""
 
-from rlm.parser import parse_response
+from replm.parser import parse_response
 
 
 class TestCodeBlockExtraction:

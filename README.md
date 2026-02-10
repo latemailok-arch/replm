@@ -43,7 +43,7 @@ Key properties:
 ## Installation
 
 ```bash
-uv add rlm
+uv add replm
 ```
 
 Or from source with development dependencies:
@@ -58,11 +58,11 @@ uv sync --group dev
 
 ```python
 from openai import OpenAI
-from rlm import RLMWrapper, RLMConfig
+from replm import RLMWrapper, RLMConfig
 
 client = RLMWrapper(
     OpenAI(api_key="sk-..."),
-    root_model="gpt-4.1",
+    root_model="gpt-5.2",
 )
 
 response = client.generate(
@@ -86,8 +86,8 @@ Use a powerful model for orchestration and a cheaper one for sub-calls:
 ```python
 client = RLMWrapper(
     OpenAI(api_key="sk-..."),
-    root_model="gpt-4.1",
-    sub_model="gpt-4.1-mini",
+    root_model="gpt-5.2",
+    sub_model="gpt-5-mini",
     config=RLMConfig(
         max_iterations=30,
         max_sub_calls=1000,
@@ -102,12 +102,12 @@ Use `agenerate()` with an async client for concurrent sub-calls via `llm_query_b
 
 ```python
 from openai import AsyncOpenAI
-from rlm import RLMWrapper
+from replm import RLMWrapper
 
 client = RLMWrapper(
     AsyncOpenAI(api_key="sk-..."),
-    root_model="gpt-4.1",
-    sub_model="gpt-4.1-mini",
+    root_model="gpt-5.2",
+    sub_model="gpt-5-mini",
 )
 
 response = await client.agenerate(
@@ -116,7 +116,29 @@ response = await client.agenerate(
 )
 ```
 
-### Streaming events for observability
+### Token-by-token streaming
+
+Stream root model tokens as they arrive using `astream_generate()`:
+
+```python
+from openai import AsyncOpenAI
+from replm import RLMWrapper
+
+client = RLMWrapper(AsyncOpenAI(api_key="sk-..."), root_model="gpt-5.2")
+
+async for chunk in client.astream_generate("Summarize.", very_long_text):
+    if chunk.type == "token":
+        print(chunk.content, end="", flush=True)
+    elif chunk.type == "final_answer":
+        response = chunk.detail["response"]
+        print(f"\n\nTokens: {response.total_input_tokens + response.total_output_tokens}")
+```
+
+Chunk types: `"token"`, `"iteration_start"`, `"code_executed"`, `"final_answer"`.
+
+If the client supports native streaming (has an `astream()` method), tokens arrive in real-time. Otherwise, falls back to `acomplete()` and yields the full response as a single chunk.
+
+### Event callbacks for observability
 
 ```python
 def on_event(event):
@@ -152,7 +174,7 @@ client = RLMWrapper(
 For non-OpenAI backends, implement the `LLMClient` protocol directly:
 
 ```python
-from rlm import RLMWrapper, CompletionResult
+from replm import RLMWrapper, CompletionResult
 
 class MyClient:
     def complete(self, model, messages, temperature, max_tokens):
@@ -184,10 +206,35 @@ config = RLMConfig(
     cost_per_input_token=2.50 / 1_000_000,
     cost_per_output_token=10.0 / 1_000_000,
 )
-client = RLMWrapper(OpenAI(api_key="sk-..."), root_model="gpt-4.1", config=config)
+client = RLMWrapper(OpenAI(api_key="sk-..."), root_model="gpt-5.2", config=config)
 response = client.generate(query="...", context=long_text)
 print(f"Cost: ${response.cost:.4f}")
 ```
+
+### Sub-call caching
+
+Avoid redundant API calls when the same sub-call prompt is issued multiple times within a single generation:
+
+```python
+config = RLMConfig(cache_sub_calls=True)
+```
+
+Cache hits are free — they don't count against the sub-call budget. The cache is per-generation (not persisted across calls) and uses LRU eviction with a 10,000-entry default.
+
+### OpenTelemetry tracing
+
+Install the optional tracing dependency to get automatic span instrumentation:
+
+```bash
+uv add "replm[tracing]"
+```
+
+When `opentelemetry-api` is installed, spans are emitted automatically:
+
+- `rlm.generate` — root generation run (attributes: query length, model, iterations, tokens, elapsed time)
+- `rlm.sub_call` — each sub-LLM call (attributes: depth, prompt length, tokens)
+
+When OTel is not installed, tracing is a zero-cost no-op — no code changes needed.
 
 ### No-sub-calls ablation
 
@@ -245,7 +292,7 @@ The REPL executes model-generated code, so sandboxing is on by default. Three mo
 In-process sandbox that blocks dangerous operations while allowing the standard-library modules needed for data processing:
 
 - **Blocked:** `os`, `subprocess`, `sys`, `shutil`, `socket`, file I/O (`open`), code execution (`eval`, `exec`, `compile`), and all other non-whitelisted modules
-- **Allowed:** `re`, `json`, `math`, `collections`, `itertools`, `functools`, `datetime`, `hashlib`, `csv`, `statistics`, `random`, `textwrap`, `copy`, `base64`, `urllib.parse`, and [more](src/rlm/sandbox/restricted.py)
+- **Allowed:** `re`, `json`, `math`, `collections`, `itertools`, `functools`, `datetime`, `hashlib`, `csv`, `statistics`, `random`, `textwrap`, `copy`, `base64`, `urllib.parse`, and [more](src/replm/sandbox/restricted.py)
 
 Zero overhead — runs in the same process with a restricted `__builtins__` dict and a custom import hook.
 
@@ -273,17 +320,19 @@ config = RLMConfig(sandbox_mode="none")
 ## Architecture
 
 ```
-src/rlm/
+src/replm/
 ├── __init__.py            # Public API
 ├── wrapper.py             # RLMWrapper — main entry point
 ├── client.py              # LLMClient protocol + OpenAIAdapter
 ├── orchestrator.py        # Root REPL loop (Algorithm 1)
 ├── async_orchestrator.py  # Async variant with concurrent sub-calls
+├── stream.py              # StreamOrchestrator + StreamChunk (token streaming)
 ├── repl.py                # REPL environment: exec, variables
 ├── sub_caller.py          # Sub-LLM call manager (sync)
 ├── async_sub_caller.py    # Sub-LLM call manager (async)
 ├── budget.py              # SharedBudget for global sub-call limits
 ├── cache.py               # LRU cache for sub-call responses
+├── tracing.py             # OpenTelemetry spans (no-op when OTel absent)
 ├── parser.py              # Parse code blocks + FINAL directives
 ├── prompt.py              # System prompt templates (Appendix C.1)
 ├── metadata.py            # Truncation logic
@@ -299,8 +348,8 @@ src/rlm/
 ## Development
 
 ```bash
-git clone https://github.com/replm/rlm.git
-cd rlm
+git clone https://github.com/dschulmeist/replm.git
+cd replm
 uv sync --group dev
 uv run pytest
 ```
@@ -324,8 +373,6 @@ uv run mypy src/
 ## Roadmap
 
 - External sandboxing backends (Docker, E2B)
-- Token-by-token streaming of root model output
-- OpenTelemetry integration
 
 ## Citations
 

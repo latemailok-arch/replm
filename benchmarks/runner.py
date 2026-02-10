@@ -9,7 +9,7 @@ from pathlib import Path
 
 from openai import OpenAI
 
-from rlm import RLMWrapper
+from replm import RLMWrapper
 
 from .config import BenchmarkConfig
 from .results import BenchmarkResults, TaskResult

@@ -9,7 +9,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from rlm import RLMConfig, RLMWrapper
+from replm import RLMConfig, RLMWrapper
 
 # Load .env from benchmarks/ or examples/ directory.
 _here = Path(__file__).parent

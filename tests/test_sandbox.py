@@ -2,9 +2,9 @@
 
 import pytest
 
-from rlm.config import RLMConfig
-from rlm.repl import REPLEnvironment
-from rlm.sandbox.restricted import ALLOWED_MODULES, build_safe_builtins
+from replm.config import RLMConfig
+from replm.repl import REPLEnvironment
+from replm.sandbox.restricted import ALLOWED_MODULES, build_safe_builtins
 
 # ---------------------------------------------------------------------------
 # Restricted mode — blocked operations

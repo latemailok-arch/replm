@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from rlm.client import CompletionResult, OpenAIAdapter, wrap_if_needed
+from replm.client import CompletionResult, OpenAIAdapter, wrap_if_needed
 
 # ---------------------------------------------------------------------------
 # Mock OpenAI SDK objects
@@ -181,8 +181,8 @@ class TestCustomClient:
     """Verify that a custom client satisfying the protocol works end-to-end."""
 
     def test_custom_client_with_orchestrator(self):
-        from rlm.config import RLMConfig
-        from rlm.orchestrator import Orchestrator
+        from replm.config import RLMConfig
+        from replm.orchestrator import Orchestrator
 
         class SimpleClient:
             def complete(

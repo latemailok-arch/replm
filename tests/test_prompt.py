@@ -2,8 +2,8 @@
 
 import pytest
 
-from rlm.config import RLMConfig
-from rlm.prompt import build_nudge_prompt, build_root_system_prompt
+from replm.config import RLMConfig
+from replm.prompt import build_nudge_prompt, build_root_system_prompt
 
 
 class TestBuildRootSystemPrompt:

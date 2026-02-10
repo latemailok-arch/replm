@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from rlm.cache import CacheStats, SubCallCache
-from rlm.client import CompletionResult
-from rlm.config import RLMConfig
-from rlm.orchestrator import Orchestrator
-from rlm.types import RLMEvent
+from replm.cache import CacheStats, SubCallCache
+from replm.client import CompletionResult
+from replm.config import RLMConfig
+from replm.orchestrator import Orchestrator
+from replm.types import RLMEvent
 
 # ---------------------------------------------------------------------------
 # Unit tests for SubCallCache

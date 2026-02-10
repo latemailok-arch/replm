@@ -1,6 +1,6 @@
 """Tests for rlm.repl."""
 
-from rlm.repl import REPLEnvironment
+from replm.repl import REPLEnvironment
 
 
 def _noop_llm_query(prompt: str) -> str:

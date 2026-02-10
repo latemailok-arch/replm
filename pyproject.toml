@@ -1,5 +1,5 @@
 [project]
-name = "rlm"
+name = "replm"
 version = "0.1.0"
 description = "Recursive Language Models — process arbitrarily long prompts by offloading context into a REPL and enabling symbolic recursion via sub-LLM calls"
 readme = "README.md"
@@ -35,19 +35,22 @@ benchmarks = [
     "matplotlib>=3.8",
     "python-dotenv>=1.0",
 ]
+tracing = [
+    "opentelemetry-api>=1.20",
+]
 
 [project.urls]
-Homepage = "https://github.com/replm/rlm"
-Documentation = "https://github.com/replm/rlm#readme"
-Repository = "https://github.com/replm/rlm"
-Issues = "https://github.com/replm/rlm/issues"
+Homepage = "https://github.com/dschulmeist/replm"
+Documentation = "https://github.com/dschulmeist/replm#readme"
+Repository = "https://github.com/dschulmeist/replm"
+Issues = "https://github.com/dschulmeist/replm/issues"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/rlm"]
+packages = ["src/replm"]
 
 [dependency-groups]
 dev = [

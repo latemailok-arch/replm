@@ -6,11 +6,11 @@ from typing import Any
 
 import pytest
 
-from rlm.async_orchestrator import AsyncOrchestrator
-from rlm.client import CompletionResult
-from rlm.config import RLMConfig
-from rlm.types import RLMEvent
-from rlm.wrapper import RLMWrapper
+from replm.async_orchestrator import AsyncOrchestrator
+from replm.client import CompletionResult
+from replm.config import RLMConfig
+from replm.types import RLMEvent
+from replm.wrapper import RLMWrapper
 
 # ---------------------------------------------------------------------------
 # Async mock client implementing LLMClient protocol

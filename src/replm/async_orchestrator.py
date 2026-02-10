@@ -1,12 +1,19 @@
-"""Core RLM loop — Algorithm 1 from the paper."""
+"""Async RLM loop — mirrors :class:`~rlm.orchestrator.Orchestrator` with ``await``.
+
+Root LLM calls are awaited, sub-calls use :class:`AsyncSubCallManager` which
+bridges back to the event loop from the REPL worker thread, and
+``llm_query_batch`` enables parallel sub-calls via ``asyncio.gather``.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections.abc import Callable
 from typing import Any
 
+from .async_sub_caller import AsyncSubCallManager
 from .budget import SharedBudget
 from .cache import SubCallCache
 from .client import wrap_if_needed
@@ -20,19 +27,19 @@ from .metadata import (
 from .parser import parse_response
 from .prompt import build_nudge_prompt, build_root_system_prompt
 from .repl import REPLEnvironment
-from .sub_caller import SubCallManager
+from .tracing import span
 from .types import HistoryEntry, RLMEvent, RLMResponse
 
 logger = logging.getLogger(__name__)
 
 
-class Orchestrator:
-    """Implements the root REPL loop (Algorithm 1).
+class AsyncOrchestrator:
+    """Async variant of :class:`~rlm.orchestrator.Orchestrator`.
 
     Parameters
     ----------
     client:
-        An OpenAI-compatible client instance.
+        An async OpenAI-compatible client (e.g. ``openai.AsyncOpenAI``).
     config:
         :class:`~rlm.config.RLMConfig` with all tuning knobs.
     root_model:
@@ -41,7 +48,6 @@ class Orchestrator:
         Model identifier for sub-LLM calls (falls back to *root_model*).
     budget:
         Shared budget for tracking calls/tokens across recursion depths.
-        If ``None``, a fresh budget is created from *config* defaults.
     depth:
         Current recursion depth (0 = root level).
     """
@@ -62,13 +68,29 @@ class Orchestrator:
         self._budget = budget
         self._depth = depth
 
-    def run(
+    async def run(
         self,
         query: str,
         context: str | list[str],
         on_event: Callable[[RLMEvent], None] | None = None,
     ) -> RLMResponse:
-        """Execute the full RLM loop and return an :class:`RLMResponse`."""
+        """Execute the full async RLM loop and return an :class:`RLMResponse`."""
+        with span(
+            "rlm.generate",
+            {
+                "rlm.query_len": len(query),
+                "rlm.model": self._root_model,
+            },
+        ) as root_span:
+            return await self._run_inner(query, context, on_event, root_span)
+
+    async def _run_inner(
+        self,
+        query: str,
+        context: str | list[str],
+        on_event: Callable[[RLMEvent], None] | None,
+        root_span: Any,
+    ) -> RLMResponse:
         start_time = time.monotonic()
 
         config = self._config
@@ -82,7 +104,7 @@ class Orchestrator:
 
         # -- 1. Sub-call manager + REPL initialization -----------------------
         cache = SubCallCache() if config.cache_sub_calls else None
-        sub_mgr = SubCallManager(
+        sub_mgr = AsyncSubCallManager(
             self._client,
             config,
             self._sub_model,
@@ -91,12 +113,15 @@ class Orchestrator:
             cache=cache,
         )
         sub_mgr.set_event_callback(on_event)
+        sub_mgr.set_loop(asyncio.get_running_loop())
 
         llm_query_fn = sub_mgr.make_query_fn() if config.enable_sub_calls else None
+        llm_query_batch_fn = sub_mgr.make_batch_fn() if config.enable_sub_calls else None
 
         repl = REPLEnvironment(
             context=context,
             llm_query_fn=llm_query_fn,
+            llm_query_batch_fn=llm_query_batch_fn,
             timeout=config.sandbox_timeout,
             sandbox_mode=config.sandbox_mode,
         )
@@ -107,6 +132,7 @@ class Orchestrator:
             context_total_length=context_total_length(context),
             context_lengths=context_chunk_lengths(context),
             config=config,
+            include_batch_fn=config.enable_sub_calls,
         )
 
         messages: list[dict[str, str]] = [
@@ -131,8 +157,8 @@ class Orchestrator:
                     )
                 )
 
-            # -- 3a. Call root model -----------------------------------------
-            result = self._client.complete(
+            # -- 3a. Call root model (async) ---------------------------------
+            result = await self._client.acomplete(
                 model=self._root_model,
                 messages=messages,
                 temperature=config.temperature,
@@ -173,12 +199,16 @@ class Orchestrator:
                     on_event=on_event,
                     start_time=start_time,
                     cache=cache,
+                    root_span=root_span,
                 )
 
             # -- 3d. Execute code blocks in REPL -----------------------------
+            # Run in executor so the event loop stays free for
+            # asyncio.run_coroutine_threadsafe calls from the REPL thread.
+            loop = asyncio.get_running_loop()
             combined_stdout = ""
             for block in parsed.code_blocks:
-                stdout, _had_error = repl.execute(block)
+                stdout, _had_error = await loop.run_in_executor(None, repl.execute, block)
                 combined_stdout += stdout
 
             if on_event and parsed.code_blocks:
@@ -207,7 +237,6 @@ class Orchestrator:
                         cache=cache,
                     )
                 else:
-                    # Tell the model the variable doesn't exist so it can fix it.
                     available = ", ".join(repl.variable_names) or "(none)"
                     combined_stdout += (
                         f"\n[Error] FINAL_VAR referenced '{parsed.final_var}' "
@@ -228,12 +257,12 @@ class Orchestrator:
                     on_event=on_event,
                     start_time=start_time,
                     cache=cache,
+                    root_span=root_span,
                 )
 
             # -- 3f. Truncated metadata of stdout ----------------------------
             truncated_stdout = make_metadata(combined_stdout, config.metadata_prefix_chars)
 
-            # Record history.
             history.append(
                 HistoryEntry(
                     role="root",
@@ -258,7 +287,7 @@ class Orchestrator:
             messages.append({"role": "user", "content": repl_label + truncated_stdout})
 
         # -- 4. Max iterations: nudge for a final answer ---------------------
-        return self._force_final(
+        return await self._force_final(
             messages=messages,
             repl=repl,
             sub_mgr=sub_mgr,
@@ -268,28 +297,30 @@ class Orchestrator:
             on_event=on_event,
             start_time=start_time,
             cache=cache,
+            root_span=root_span,
         )
 
     # -- Helpers -------------------------------------------------------------
 
-    def _force_final(
+    async def _force_final(
         self,
         messages: list[dict[str, str]],
         repl: REPLEnvironment,
-        sub_mgr: SubCallManager,
+        sub_mgr: AsyncSubCallManager,
         root_input_tokens: int,
         root_output_tokens: int,
         history: list[HistoryEntry],
         on_event: Callable[[RLMEvent], None] | None,
         start_time: float = 0.0,
         cache: SubCallCache | None = None,
+        root_span: Any = None,
     ) -> RLMResponse:
         """Send a nudge message and attempt to extract a final answer."""
         config = self._config
 
         messages.append({"role": "user", "content": build_nudge_prompt()})
 
-        result = self._client.complete(
+        result = await self._client.acomplete(
             model=self._root_model,
             messages=messages,
             temperature=config.temperature,
@@ -310,14 +341,12 @@ class Orchestrator:
             answer = str(repl.get_variable(parsed.final_var))
 
         if answer is None:
-            # Last resort: check for plausible answer variables.
             for name in ("final_answer", "answer", "result", "output"):
                 if repl.has_variable(name):
                     answer = str(repl.get_variable(name))
                     break
 
         if answer is None:
-            # Return the raw nudge response as the answer.
             answer = text
 
         return self._build_response(
@@ -331,13 +360,14 @@ class Orchestrator:
             on_event=on_event,
             start_time=start_time,
             cache=cache,
+            root_span=root_span,
         )
 
     def _build_response(
         self,
         answer: str,
         iterations: int,
-        sub_mgr: SubCallManager,
+        sub_mgr: AsyncSubCallManager,
         root_input_tokens: int,
         root_output_tokens: int,
         history: list[HistoryEntry],
@@ -345,6 +375,7 @@ class Orchestrator:
         on_event: Callable[[RLMEvent], None] | None,
         start_time: float = 0.0,
         cache: SubCallCache | None = None,
+        root_span: Any = None,
     ) -> RLMResponse:
         if on_event:
             on_event(
@@ -357,12 +388,22 @@ class Orchestrator:
 
         elapsed = time.monotonic() - start_time if start_time else 0.0
 
+        total_in = root_input_tokens + sub_mgr.total_input_tokens
+        total_out = root_output_tokens + sub_mgr.total_output_tokens
+
+        if root_span is not None:
+            root_span.set_attribute("rlm.iterations", iterations)
+            root_span.set_attribute("rlm.sub_calls", sub_mgr.call_count)
+            root_span.set_attribute("rlm.total_input_tokens", total_in)
+            root_span.set_attribute("rlm.total_output_tokens", total_out)
+            root_span.set_attribute("rlm.elapsed_seconds", elapsed)
+
         return RLMResponse(
             answer=answer,
             iterations=iterations,
             sub_calls=sub_mgr.call_count,
-            total_input_tokens=root_input_tokens + sub_mgr.total_input_tokens,
-            total_output_tokens=root_output_tokens + sub_mgr.total_output_tokens,
+            total_input_tokens=total_in,
+            total_output_tokens=total_out,
             cache_hits=cache.stats.hits if cache else 0,
             cost_per_input_token=self._config.cost_per_input_token,
             cost_per_output_token=self._config.cost_per_output_token,

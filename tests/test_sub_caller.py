@@ -6,12 +6,12 @@ from typing import Any
 
 import pytest
 
-from rlm.budget import SharedBudget
-from rlm.client import CompletionResult
-from rlm.config import RLMConfig
-from rlm.exceptions import MaxSubCallsExceeded
-from rlm.sub_caller import SubCallManager
-from rlm.types import RLMEvent
+from replm.budget import SharedBudget
+from replm.client import CompletionResult
+from replm.config import RLMConfig
+from replm.exceptions import MaxSubCallsExceeded
+from replm.sub_caller import SubCallManager
+from replm.types import RLMEvent
 
 # -- Mock client implementing LLMClient protocol ----------------------------
 
