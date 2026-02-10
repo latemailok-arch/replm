@@ -370,9 +370,25 @@ uv run ruff format src/ tests/
 uv run mypy src/
 ```
 
+## Limitations
+
+replm uses **prompted RLMs** — it wraps any existing LLM without fine-tuning. The [original paper](https://arxiv.org/abs/2512.24601) also trained a dedicated model (RLM-Qwen3-8B) that outperformed the prompted approach by 28.3% on average. Key differences and current limitations:
+
+- **No fine-tuning.** The paper's fine-tuned RLM-Qwen3-8B made fewer REPL mistakes, used sub-calls more efficiently, and achieved lower inference costs. replm relies on prompting alone, so quality depends heavily on the base model's coding ability and instruction following.
+- **Model-dependent behavior.** The system prompt was originally designed for GPT-5. Different models exhibit different decomposition strategies — some (e.g. Qwen3-Coder) tend to launch excessive sub-calls, while smaller models may struggle with REPL interaction entirely. Use `prompt_variant` to mitigate this.
+- **Cost variance.** While the median RLM run is comparable in cost to vanilla LLM calls, the distribution has a long tail. Complex queries can trigger deep chains of sub-calls, making individual runs significantly more expensive than the average.
+- **Output parsing brittleness.** Distinguishing the final answer from intermediate reasoning can be fragile. Models occasionally output their plan as the final answer, or misuse `FINAL` / `FINAL_VAR` syntax.
+- **Latency.** Each REPL iteration requires a full round-trip to the LLM. Sync mode processes sub-calls sequentially — use `agenerate()` with `llm_query_batch` for parallelism.
+
+For tasks within the model's native context window, a vanilla LLM call is simpler and faster. RLMs shine when inputs exceed the context window or when quality degrades due to context rot (the paper shows GPT-5 dropping to near 0% on quadratic-complexity tasks at 256K tokens, while RLMs maintain ~43%).
+
 ## Roadmap
 
 - External sandboxing backends (Docker, E2B)
+- Anthropic / Google adapters (beyond OpenAI-compatible)
+- Structured logging with timing data per event
+- Multi-modal context (images/PDFs as context chunks)
+- Tool use integration (web search, calculator, databases)
 
 ## Citations
 
