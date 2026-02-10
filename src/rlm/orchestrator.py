@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import Any
 
 from .budget import SharedBudget
+from .client import wrap_if_needed
 from .config import RLMConfig
 from .metadata import (
     context_chunk_lengths,
@@ -53,7 +54,7 @@ class Orchestrator:
         budget: SharedBudget | None = None,
         depth: int = 0,
     ) -> None:
-        self._client = client
+        self._client = wrap_if_needed(client)
         self._config = config
         self._root_model = root_model
         self._sub_model = sub_model
@@ -128,18 +129,16 @@ class Orchestrator:
                 )
 
             # -- 3a. Call root model -----------------------------------------
-            response = self._client.chat.completions.create(
+            result = self._client.complete(
                 model=self._root_model,
                 messages=messages,
                 temperature=config.temperature,
                 max_tokens=config.root_max_tokens,
             )
 
-            assistant_text: str = response.choices[0].message.content or ""
-            usage = getattr(response, "usage", None)
-            if usage:
-                root_input_tokens += getattr(usage, "prompt_tokens", 0)
-                root_output_tokens += getattr(usage, "completion_tokens", 0)
+            assistant_text: str = result.content
+            root_input_tokens += result.input_tokens
+            root_output_tokens += result.output_tokens
 
             if config.verbose:
                 logger.info("iter %d  root output (%d chars)", iteration, len(assistant_text))
@@ -281,18 +280,16 @@ class Orchestrator:
 
         messages.append({"role": "user", "content": build_nudge_prompt()})
 
-        response = self._client.chat.completions.create(
+        result = self._client.complete(
             model=self._root_model,
             messages=messages,
             temperature=config.temperature,
             max_tokens=config.root_max_tokens,
         )
 
-        text: str = response.choices[0].message.content or ""
-        usage = getattr(response, "usage", None)
-        if usage:
-            root_input_tokens += getattr(usage, "prompt_tokens", 0)
-            root_output_tokens += getattr(usage, "completion_tokens", 0)
+        text: str = result.content
+        root_input_tokens += result.input_tokens
+        root_output_tokens += result.output_tokens
 
         parsed = parse_response(text)
 

@@ -139,7 +139,7 @@ class BenchmarkRunner:
                 {"role": "user", "content": user_msg},
             ],
             temperature=self._config.temperature,
-            max_tokens=1024,
+            max_tokens=16384,
         )
 
         predicted = (response.choices[0].message.content or "").strip()

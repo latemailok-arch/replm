@@ -15,6 +15,7 @@ Basic usage::
 
 from .async_orchestrator import AsyncOrchestrator
 from .budget import SharedBudget
+from .client import CompletionResult, LLMClient, OpenAIAdapter
 from .config import RLMConfig
 from .exceptions import MaxSubCallsExceeded, RLMError
 from .types import HistoryEntry, RLMEvent, RLMResponse
@@ -28,6 +29,9 @@ __all__ = [
     "HistoryEntry",
     "SharedBudget",
     "AsyncOrchestrator",
+    "CompletionResult",
+    "LLMClient",
+    "OpenAIAdapter",
     "RLMError",
     "MaxSubCallsExceeded",
 ]

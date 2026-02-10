@@ -2,69 +2,63 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 import pytest
 
 from rlm.async_orchestrator import AsyncOrchestrator
+from rlm.client import CompletionResult
 from rlm.config import RLMConfig
 from rlm.types import RLMEvent
 from rlm.wrapper import RLMWrapper
 
 # ---------------------------------------------------------------------------
-# Async mock client
+# Async mock client implementing LLMClient protocol
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class _Usage:
-    prompt_tokens: int = 100
-    completion_tokens: int = 50
-
-
-@dataclass
-class _Message:
-    content: str = ""
-
-
-@dataclass
-class _Choice:
-    message: _Message
-
-
-@dataclass
-class _CompletionResponse:
-    choices: list[_Choice]
-    usage: _Usage
-
-
-class _AsyncMockCompletions:
-    """Simulates ``client.chat.completions.create()`` as an async method."""
+class AsyncMockClient:
+    """Mock async LLM client for testing."""
 
     def __init__(self, responses: list[str]) -> None:
         self._responses = list(responses)
         self.calls: list[dict[str, Any]] = []
 
-    async def create(self, **kwargs: Any) -> _CompletionResponse:
-        self.calls.append(kwargs)
-        text = self._responses.pop(0) if self._responses else "FINAL(fallback)"
-        return _CompletionResponse(
-            choices=[_Choice(message=_Message(content=text))],
-            usage=_Usage(),
+    async def acomplete(
+        self,
+        model: str,
+        messages: list[dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+    ) -> CompletionResult:
+        self.calls.append(
+            {
+                "model": model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
         )
+        text = self._responses.pop(0) if self._responses else "FINAL(fallback)"
+        return CompletionResult(content=text, input_tokens=100, output_tokens=50)
 
-
-class _AsyncMockChat:
-    def __init__(self, responses: list[str]) -> None:
-        self.completions = _AsyncMockCompletions(responses)
-
-
-class AsyncMockClient:
-    """Minimal async mock of an OpenAI client."""
-
-    def __init__(self, responses: list[str]) -> None:
-        self.chat = _AsyncMockChat(responses)
+    def complete(
+        self,
+        model: str,
+        messages: list[dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+    ) -> CompletionResult:
+        self.calls.append(
+            {
+                "model": model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+        )
+        text = self._responses.pop(0) if self._responses else "FINAL(fallback)"
+        return CompletionResult(content=text, input_tokens=100, output_tokens=50)
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +179,7 @@ class TestAsyncSystemPrompt:
         config = RLMConfig(max_iterations=5)
         orch = AsyncOrchestrator(client, config, "m", "m")
         await orch.run("q", "ctx")
-        system_msg = client.chat.completions.calls[0]["messages"][0]["content"]
+        system_msg = client.calls[0]["messages"][0]["content"]
         assert "llm_query_batch" in system_msg
 
     @pytest.mark.asyncio
@@ -195,7 +189,7 @@ class TestAsyncSystemPrompt:
         config = RLMConfig(max_iterations=5, enable_sub_calls=False)
         orch = AsyncOrchestrator(client, config, "m", "m")
         await orch.run("q", "ctx")
-        system_msg = client.chat.completions.calls[0]["messages"][0]["content"]
+        system_msg = client.calls[0]["messages"][0]["content"]
         assert "llm_query_batch" not in system_msg
         assert "llm_query" not in system_msg
 

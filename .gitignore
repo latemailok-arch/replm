@@ -7,6 +7,7 @@ __pycache__/
 dist/
 build/
 .eggs/
+.claude/
 
 # Virtual environments
 .venv/
@@ -39,7 +40,7 @@ OG_PAPER.md
 SUMMARY.md
 CLAUDE.md
 LEARNINGS.md
-
+.claude/
 # Benchmark results (regenerated from runs)
 benchmarks/results/
 

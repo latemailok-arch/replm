@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import Any, Protocol
+from typing import Any
 
 from .budget import SharedBudget
 from .config import RLMConfig
@@ -16,15 +16,6 @@ _SUB_SYSTEM_PROMPT = (
     "You are a helpful assistant. Answer the query based on the provided "
     "context. Be precise and thorough."
 )
-
-
-class _ChatClient(Protocol):
-    """Minimal structural type for an OpenAI-compatible client."""
-
-    class chat:  # noqa: N801
-        class completions:  # noqa: N801
-            @staticmethod
-            def create(**kwargs: Any) -> Any: ...
 
 
 class SubCallManager:
@@ -137,7 +128,7 @@ class SubCallManager:
                     self._model,
                 )
 
-            response = self._client.chat.completions.create(
+            result = self._client.complete(
                 model=self._model,
                 messages=[
                     {"role": "system", "content": _SUB_SYSTEM_PROMPT},
@@ -147,14 +138,8 @@ class SubCallManager:
                 max_tokens=self._config.sub_max_tokens,
             )
 
-            text: str = response.choices[0].message.content or ""
-
-            usage = getattr(response, "usage", None)
-            if usage:
-                self._budget.add_tokens(
-                    getattr(usage, "prompt_tokens", 0),
-                    getattr(usage, "completion_tokens", 0),
-                )
+            text: str = result.content
+            self._budget.add_tokens(result.input_tokens, result.output_tokens)
 
             if self._event_callback:
                 self._event_callback(

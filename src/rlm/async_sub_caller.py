@@ -151,7 +151,7 @@ class AsyncSubCallManager:
                 self._model,
             )
 
-        response = await self._client.chat.completions.create(
+        result = await self._client.acomplete(
             model=self._model,
             messages=[
                 {"role": "system", "content": _SUB_SYSTEM_PROMPT},
@@ -161,14 +161,8 @@ class AsyncSubCallManager:
             max_tokens=self._config.sub_max_tokens,
         )
 
-        text: str = response.choices[0].message.content or ""
-
-        usage = getattr(response, "usage", None)
-        if usage:
-            self._budget.add_tokens(
-                getattr(usage, "prompt_tokens", 0),
-                getattr(usage, "completion_tokens", 0),
-            )
+        text: str = result.content
+        self._budget.add_tokens(result.input_tokens, result.output_tokens)
 
         if self._event_callback:
             self._event_callback(

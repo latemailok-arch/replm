@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 import pytest
 
 from rlm.budget import SharedBudget
+from rlm.client import CompletionResult
 from rlm.config import RLMConfig
 from rlm.exceptions import MaxSubCallsExceeded
 from rlm.sub_caller import SubCallManager
 from rlm.types import RLMEvent
 
-# -- Mock client -------------------------------------------------------------
+# -- Mock client implementing LLMClient protocol ----------------------------
 
 # Use max_recursion_depth=0 for tests that verify plain (non-recursive) sub-call
 # behaviour.  With the default (1), depth=0 triggers the recursive path which
@@ -21,45 +21,26 @@ from rlm.types import RLMEvent
 _PLAIN_CONFIG = RLMConfig(max_recursion_depth=0)
 
 
-@dataclass
-class _Usage:
-    prompt_tokens: int = 10
-    completion_tokens: int = 5
-
-
-@dataclass
-class _Message:
-    content: str = "mock response"
-
-
-@dataclass
-class _Choice:
-    message: _Message
-
-
-@dataclass
-class _Response:
-    choices: list[_Choice]
-    usage: _Usage
-
-
-class _MockCompletions:
+class _MockClient:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
 
-    def create(self, **kwargs: Any) -> _Response:
-        self.calls.append(kwargs)
-        return _Response(choices=[_Choice(message=_Message())], usage=_Usage())
-
-
-class _MockChat:
-    def __init__(self) -> None:
-        self.completions = _MockCompletions()
-
-
-class _MockClient:
-    def __init__(self) -> None:
-        self.chat = _MockChat()
+    def complete(
+        self,
+        model: str,
+        messages: list[dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+    ) -> CompletionResult:
+        self.calls.append(
+            {
+                "model": model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+        )
+        return CompletionResult(content="mock response", input_tokens=10, output_tokens=5)
 
 
 # -- Tests -------------------------------------------------------------------
@@ -78,14 +59,14 @@ class TestMakeQueryFn:
         result = fn("hello world")
         assert result == "mock response"
         assert mgr.call_count == 1
-        assert len(client.chat.completions.calls) == 1
+        assert len(client.calls) == 1
 
     def test_model_passed_correctly(self):
         client = _MockClient()
         mgr = SubCallManager(client, _PLAIN_CONFIG, "my-special-model")
         fn = mgr.make_query_fn()
         fn("test")
-        call = client.chat.completions.calls[0]
+        call = client.calls[0]
         assert call["model"] == "my-special-model"
 
     def test_temperature_from_config(self):
@@ -94,7 +75,7 @@ class TestMakeQueryFn:
         mgr = SubCallManager(client, config, "m")
         fn = mgr.make_query_fn()
         fn("test")
-        call = client.chat.completions.calls[0]
+        call = client.calls[0]
         assert call["temperature"] == 0.7
 
     def test_max_tokens_from_config(self):
@@ -103,7 +84,7 @@ class TestMakeQueryFn:
         mgr = SubCallManager(client, config, "m")
         fn = mgr.make_query_fn()
         fn("test")
-        call = client.chat.completions.calls[0]
+        call = client.calls[0]
         assert call["max_tokens"] == 4096
 
 
@@ -126,7 +107,7 @@ class TestInputTruncation:
         mgr = SubCallManager(client, config, "m")
         fn = mgr.make_query_fn()
         fn("x" * 500)
-        call = client.chat.completions.calls[0]
+        call = client.calls[0]
         user_msg = call["messages"][1]["content"]
         assert len(user_msg) == 100
 
@@ -136,7 +117,7 @@ class TestInputTruncation:
         mgr = SubCallManager(client, config, "m")
         fn = mgr.make_query_fn()
         fn("short prompt")
-        call = client.chat.completions.calls[0]
+        call = client.calls[0]
         user_msg = call["messages"][1]["content"]
         assert user_msg == "short prompt"
 
@@ -217,7 +198,7 @@ class TestDepthDispatch:
         fn = mgr.make_query_fn()
         result = fn("test")
         assert result == "mock response"
-        assert len(client.chat.completions.calls) == 1
+        assert len(client.calls) == 1
 
     def test_depth_below_max_uses_recursive_call(self):
         """At depth < max_recursion_depth, uses recursive inner Orchestrator."""
@@ -227,7 +208,7 @@ class TestDepthDispatch:
         fn = mgr.make_query_fn()
         fn("test")
         # Recursive path makes multiple client calls (inner orchestrator loop)
-        assert len(client.chat.completions.calls) > 1
+        assert len(client.calls) > 1
 
 
 class TestEventCallbacks:
