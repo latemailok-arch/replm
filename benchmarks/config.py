@@ -90,8 +90,8 @@ class BenchmarkConfig:
 def gpt5_config(**overrides: object) -> BenchmarkConfig:
     """GPT-5 (medium reasoning) + GPT-5-mini — matches the paper."""
     defaults = dict(
-        root_model=os.environ.get("ROOT-MODEL", "gpt-5"),  # noqa: SIM112
-        sub_model=os.environ.get("SUB-MODEL", "gpt-5-mini"),  # noqa: SIM112
+        root_model=os.environ.get("GPT5-1", "gpt-5"),  # noqa: SIM112
+        sub_model=os.environ.get("GPT5mini", "gpt-5-mini"),  # noqa: SIM112
         base_reasoning_effort="medium",
         base_context_limit_chars=1_000_000,
         config_label="gpt5",
@@ -103,8 +103,8 @@ def gpt5_config(**overrides: object) -> BenchmarkConfig:
 def oss120b_config(**overrides: object) -> BenchmarkConfig:
     """gpt-oss-120b (root) + GPT-5-mini (sub) — open-source root."""
     defaults = dict(
-        root_model=os.environ.get("ROOT-MODEL-ALT", "gpt-oss-120b"),  # noqa: SIM112
-        sub_model=os.environ.get("SUB-MODEL", "gpt-5-mini"),  # noqa: SIM112
+        root_model=os.environ.get("GPT-OSS-120b-MODEL", "gpt-oss-120b"),  # noqa: SIM112
+        sub_model=os.environ.get("GPT-OSS-120b-MODEL", "gpt-oss-120b"),  # noqa: SIM112
         base_reasoning_effort=None,
         base_context_limit_chars=500_000,
         config_label="oss120b",
