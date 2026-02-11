@@ -143,6 +143,7 @@ class AsyncOrchestrator:
         history: list[HistoryEntry] = []
         root_input_tokens = 0
         root_output_tokens = 0
+        has_executed_code = False  # Track whether any REPL code has run.
 
         # -- 3. Root loop ----------------------------------------------------
         for iteration in range(1, config.max_iterations + 1):
@@ -188,19 +189,28 @@ class AsyncOrchestrator:
 
             # -- 3c. Check for FINAL directive (direct answer, no code needed)
             if parsed.final_answer is not None:
-                return self._build_response(
-                    answer=parsed.final_answer,
-                    iterations=iteration,
-                    sub_mgr=sub_mgr,
-                    root_input_tokens=root_input_tokens,
-                    root_output_tokens=root_output_tokens,
-                    history=history,
-                    repl=repl,
-                    on_event=on_event,
-                    start_time=start_time,
-                    cache=cache,
-                    root_span=root_span,
-                )
+                if has_executed_code:
+                    return self._build_response(
+                        answer=parsed.final_answer,
+                        iterations=iteration,
+                        sub_mgr=sub_mgr,
+                        root_input_tokens=root_input_tokens,
+                        root_output_tokens=root_output_tokens,
+                        history=history,
+                        repl=repl,
+                        on_event=on_event,
+                        start_time=start_time,
+                        cache=cache,
+                        root_span=root_span,
+                    )
+                # Safeguard: reject FINAL before any code was executed.
+                # The model must examine the context via the REPL first.
+                parsed.final_answer = None
+                if config.verbose:
+                    logger.info(
+                        "iter %d  rejected premature FINAL (no code executed yet)",
+                        iteration,
+                    )
 
             # -- 3d. Execute code blocks in REPL -----------------------------
             # Run in executor so the event loop stays free for
@@ -210,6 +220,9 @@ class AsyncOrchestrator:
             for block in parsed.code_blocks:
                 stdout, _had_error = await loop.run_in_executor(None, repl.execute, block)
                 combined_stdout += stdout
+
+            if parsed.code_blocks:
+                has_executed_code = True
 
             if on_event and parsed.code_blocks:
                 on_event(
@@ -283,8 +296,23 @@ class AsyncOrchestrator:
             # -- 3g. Append to message history for next turn -----------------
             messages.append({"role": "assistant", "content": assistant_text})
 
-            repl_label = "[REPL Output] " if combined_stdout else "[REPL] No output."
-            messages.append({"role": "user", "content": repl_label + truncated_stdout})
+            if combined_stdout:
+                messages.append(
+                    {"role": "user", "content": "[REPL Output] " + truncated_stdout}
+                )
+            elif not parsed.code_blocks:
+                # Model didn't write any code — nudge it to use the REPL.
+                nudge = (
+                    "[System] You must examine the context before providing a final "
+                    "answer. The `context` variable is loaded in the REPL. Write "
+                    "Python code in ```repl blocks to access it. Example:\n\n"
+                    "```repl\nprint(context[:500])\n```"
+                )
+                messages.append({"role": "user", "content": nudge})
+            else:
+                messages.append(
+                    {"role": "user", "content": "[REPL] No output."}
+                )
 
         # -- 4. Max iterations: nudge for a final answer ---------------------
         return await self._force_final(

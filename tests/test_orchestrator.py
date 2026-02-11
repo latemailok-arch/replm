@@ -50,14 +50,20 @@ class MockClient:
 
 
 class TestBasicLoop:
-    def test_immediate_final(self):
-        """Model returns FINAL on the first iteration."""
-        client = MockClient(["FINAL(42)"])
+    def test_premature_final_rejected(self):
+        """FINAL before any code execution is rejected; model must use REPL first."""
+        client = MockClient(
+            [
+                "FINAL(42)",  # Rejected: no code executed yet.
+                "```repl\nprint('ok')\n```",  # Code runs.
+                "FINAL(42)",  # Accepted: code has been executed.
+            ]
+        )
         config = RLMConfig(max_iterations=5)
         orch = Orchestrator(client, config, "m", "m")
         resp = orch.run("What is the answer?", "some context")
         assert resp.answer == "42"
-        assert resp.iterations == 1
+        assert resp.iterations == 3
         assert resp.sub_calls == 0
 
     def test_code_then_final(self):

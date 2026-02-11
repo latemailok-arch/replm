@@ -93,7 +93,7 @@ class TestNoOpTracing:
 
     def test_orchestrator_runs_without_otel(self):
         """Orchestrator works fine without OTel installed."""
-        client = MockClient(["FINAL(42)"])
+        client = MockClient(["```repl\nprint('ok')\n```", "FINAL(42)"])
         config = RLMConfig(max_iterations=3)
         orch = Orchestrator(client, config, "m", "m")
         resp = orch.run("q", "ctx")
@@ -109,7 +109,7 @@ class TestTracingSpans:
     def test_generate_span_created(self):
         """Orchestrator creates an 'rlm.generate' span."""
         tracer, spans = _make_mock_tracer()
-        client = MockClient(["FINAL(42)"])
+        client = MockClient(["```repl\nprint('ok')\n```", "FINAL(42)"])
         config = RLMConfig(max_iterations=3)
         orch = Orchestrator(client, config, "test-model", "test-model")
 
@@ -123,7 +123,7 @@ class TestTracingSpans:
     def test_generate_span_has_query_len(self):
         """The 'rlm.generate' span has rlm.query_len attribute."""
         tracer, spans = _make_mock_tracer()
-        client = MockClient(["FINAL(42)"])
+        client = MockClient(["```repl\nprint('ok')\n```", "FINAL(42)"])
         config = RLMConfig(max_iterations=3)
         orch = Orchestrator(client, config, "test-model", "test-model")
 
@@ -171,7 +171,7 @@ class TestTracingAttributes:
     def test_final_attributes_set(self):
         """Final response sets iterations, sub_calls, tokens, elapsed on span."""
         tracer, spans = _make_mock_tracer()
-        client = MockClient(["FINAL(42)"])
+        client = MockClient(["```repl\nprint('ok')\n```", "FINAL(42)"])
         config = RLMConfig(max_iterations=3)
         orch = Orchestrator(client, config, "m", "m")
 
@@ -180,10 +180,10 @@ class TestTracingAttributes:
 
         generate_span = next(s for s in spans if s.name == "rlm.generate")
         attrs = generate_span._attributes
-        assert attrs["rlm.iterations"] == 1
+        assert attrs["rlm.iterations"] == 2
         assert attrs["rlm.sub_calls"] == 0
-        assert attrs["rlm.total_input_tokens"] == 100
-        assert attrs["rlm.total_output_tokens"] == 50
+        assert attrs["rlm.total_input_tokens"] == 200
+        assert attrs["rlm.total_output_tokens"] == 100
         assert "rlm.elapsed_seconds" in attrs
         assert attrs["rlm.elapsed_seconds"] >= 0
 
@@ -220,7 +220,7 @@ class TestAsyncTracing:
         from replm.async_orchestrator import AsyncOrchestrator
 
         tracer, spans = _make_mock_tracer()
-        client = MockClient(["FINAL(async answer)"])
+        client = MockClient(["```repl\nprint('ok')\n```", "FINAL(async answer)"])
         config = RLMConfig(max_iterations=3)
         orch = AsyncOrchestrator(client, config, "m", "m")
 
@@ -237,7 +237,7 @@ class TestAsyncTracing:
         from replm.async_orchestrator import AsyncOrchestrator
 
         tracer, spans = _make_mock_tracer()
-        client = MockClient(["FINAL(42)"])
+        client = MockClient(["```repl\nprint('ok')\n```", "FINAL(42)"])
         config = RLMConfig(max_iterations=3)
         orch = AsyncOrchestrator(client, config, "m", "m")
 
@@ -246,6 +246,6 @@ class TestAsyncTracing:
 
         generate_span = next(s for s in spans if s.name == "rlm.generate")
         attrs = generate_span._attributes
-        assert attrs["rlm.iterations"] == 1
-        assert attrs["rlm.total_input_tokens"] == 100
-        assert attrs["rlm.total_output_tokens"] == 50
+        assert attrs["rlm.iterations"] == 2
+        assert attrs["rlm.total_input_tokens"] == 200
+        assert attrs["rlm.total_output_tokens"] == 100

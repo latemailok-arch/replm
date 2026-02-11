@@ -187,6 +187,7 @@ class StreamOrchestrator:
         history: list[HistoryEntry] = []
         root_input_tokens = 0
         root_output_tokens = 0
+        has_executed_code = False  # Track whether any REPL code has run.
 
         # -- 3. Root loop ------------------------------------------------------
         for iteration in range(1, config.max_iterations + 1):
@@ -213,24 +214,32 @@ class StreamOrchestrator:
 
             # -- 3c. Check for FINAL directive ---------------------------------
             if parsed.final_answer is not None:
-                resp = self._build_response(
-                    answer=parsed.final_answer,
-                    iterations=iteration,
-                    sub_mgr=sub_mgr,
-                    root_input_tokens=root_input_tokens,
-                    root_output_tokens=root_output_tokens,
-                    history=history,
-                    repl=repl,
-                    start_time=start_time,
-                    cache=cache,
-                )
-                yield StreamChunk(
-                    type="final_answer",
-                    content=resp.answer,
-                    iteration=iteration,
-                    detail={"response": resp},
-                )
-                return
+                if has_executed_code:
+                    resp = self._build_response(
+                        answer=parsed.final_answer,
+                        iterations=iteration,
+                        sub_mgr=sub_mgr,
+                        root_input_tokens=root_input_tokens,
+                        root_output_tokens=root_output_tokens,
+                        history=history,
+                        repl=repl,
+                        start_time=start_time,
+                        cache=cache,
+                    )
+                    yield StreamChunk(
+                        type="final_answer",
+                        content=resp.answer,
+                        iteration=iteration,
+                        detail={"response": resp},
+                    )
+                    return
+                # Safeguard: reject FINAL before any code was executed.
+                parsed.final_answer = None
+                if config.verbose:
+                    logger.info(
+                        "iter %d  rejected premature FINAL (no code executed yet)",
+                        iteration,
+                    )
 
             # -- 3d. Execute code blocks in REPL --------------------------------
             loop = asyncio.get_running_loop()
@@ -240,6 +249,7 @@ class StreamOrchestrator:
                 combined_stdout += stdout
 
             if parsed.code_blocks:
+                has_executed_code = True
                 yield StreamChunk(
                     type="code_executed",
                     content=combined_stdout[:500],
@@ -319,8 +329,24 @@ class StreamOrchestrator:
 
             # -- 3g. Append to message history ---------------------------------
             messages.append({"role": "assistant", "content": assistant_text})
-            repl_label = "[REPL Output] " if combined_stdout else "[REPL] No output."
-            messages.append({"role": "user", "content": repl_label + truncated_stdout})
+
+            if combined_stdout:
+                messages.append(
+                    {"role": "user", "content": "[REPL Output] " + truncated_stdout}
+                )
+            elif not parsed.code_blocks:
+                # Model didn't write any code — nudge it to use the REPL.
+                nudge = (
+                    "[System] You must examine the context before providing a final "
+                    "answer. The `context` variable is loaded in the REPL. Write "
+                    "Python code in ```repl blocks to access it. Example:\n\n"
+                    "```repl\nprint(context[:500])\n```"
+                )
+                messages.append({"role": "user", "content": nudge})
+            else:
+                messages.append(
+                    {"role": "user", "content": "[REPL] No output."}
+                )
 
         # -- 4. Max iterations: nudge ------------------------------------------
         messages.append({"role": "user", "content": build_nudge_prompt()})

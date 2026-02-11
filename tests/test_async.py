@@ -70,13 +70,20 @@ class AsyncMockClient:
 
 class TestAsyncBasicLoop:
     @pytest.mark.asyncio
-    async def test_immediate_final(self):
-        client = AsyncMockClient(["FINAL(42)"])
+    async def test_premature_final_rejected(self):
+        """FINAL before any code execution is rejected; model must use REPL first."""
+        client = AsyncMockClient(
+            [
+                "FINAL(42)",  # Rejected: no code executed yet.
+                "```repl\nprint('ok')\n```",  # Code runs.
+                "FINAL(42)",  # Accepted: code has been executed.
+            ]
+        )
         config = RLMConfig(max_iterations=5)
         orch = AsyncOrchestrator(client, config, "m", "m")
         resp = await orch.run("What is the answer?", "some context")
         assert resp.answer == "42"
-        assert resp.iterations == 1
+        assert resp.iterations == 3
         assert resp.sub_calls == 0
 
     @pytest.mark.asyncio
@@ -219,7 +226,12 @@ class TestAsyncSubCallEvents:
 class TestWrapperAgenerate:
     @pytest.mark.asyncio
     async def test_agenerate(self):
-        client = AsyncMockClient(["FINAL(async answer)"])
+        client = AsyncMockClient(
+            [
+                "```repl\nprint('ok')\n```",
+                "FINAL(async answer)",
+            ]
+        )
         wrapper = RLMWrapper(client, root_model="m")
         resp = await wrapper.agenerate("q", "ctx")
         assert resp.answer == "async answer"

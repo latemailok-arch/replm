@@ -54,11 +54,16 @@ class MockClient:
 
 class TestRLMWrapper:
     def test_generate_returns_response(self):
-        client = MockClient(["FINAL(hello world)"])
+        client = MockClient(
+            [
+                "```repl\nprint('ok')\n```",
+                "FINAL(hello world)",
+            ]
+        )
         wrapper = RLMWrapper(client, root_model="test-model")
         resp = wrapper.generate("Say hello.", "context data")
         assert resp.answer == "hello world"
-        assert resp.iterations == 1
+        assert resp.iterations == 2
 
     def test_sub_model_defaults_to_root(self):
         client = MockClient(["FINAL(ok)"])
@@ -85,14 +90,14 @@ class TestRLMWrapper:
 
     def test_on_event_callback(self):
         events: list[str] = []
-        client = MockClient(["FINAL(done)"])
+        client = MockClient(["```repl\nprint('ok')\n```", "FINAL(done)"])
         wrapper = RLMWrapper(client, root_model="m")
         wrapper.generate("q", "ctx", on_event=lambda e: events.append(e.type))
         assert "final_answer" in events
 
     def test_cost_property(self):
         """response.cost computes from token counts and configured pricing."""
-        client = MockClient(["FINAL(ok)"])
+        client = MockClient(["```repl\nprint('ok')\n```", "FINAL(ok)"])
         config = RLMConfig(
             cost_per_input_token=2.50 / 1_000_000,
             cost_per_output_token=10.0 / 1_000_000,
@@ -108,7 +113,7 @@ class TestRLMWrapper:
 
     def test_cost_zero_without_pricing(self):
         """response.cost is 0.0 when no pricing is configured."""
-        client = MockClient(["FINAL(ok)"])
+        client = MockClient(["```repl\nprint('ok')\n```", "FINAL(ok)"])
         wrapper = RLMWrapper(client, root_model="m")
         resp = wrapper.generate("q", "ctx")
         assert resp.cost == 0.0

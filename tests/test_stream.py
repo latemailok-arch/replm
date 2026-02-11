@@ -137,9 +137,15 @@ class TestContentStream:
 
 class TestStreamNonStreaming:
     @pytest.mark.asyncio
-    async def test_immediate_final(self):
-        """Non-streaming client yields tokens then final_answer."""
-        client = AsyncMockClient(["FINAL(42)"])
+    async def test_premature_final_rejected(self):
+        """FINAL before code execution is rejected; model must use REPL first."""
+        client = AsyncMockClient(
+            [
+                "FINAL(42)",  # Rejected: no code executed yet.
+                "```repl\nprint('ok')\n```",  # Code runs.
+                "FINAL(42)",  # Accepted: code has been executed.
+            ]
+        )
         config = RLMConfig(max_iterations=5)
         orch = StreamOrchestrator(client, config, "m", "m")
         chunks: list[StreamChunk] = []
@@ -149,8 +155,8 @@ class TestStreamNonStreaming:
         types = [c.type for c in chunks]
         assert "iteration_start" in types
         assert "token" in types
+        assert "code_executed" in types
         assert "final_answer" in types
-        # Final chunk has the response
         final = [c for c in chunks if c.type == "final_answer"][0]
         assert final.content == "42"
         assert "response" in final.detail
@@ -180,11 +186,16 @@ class TestStreamNonStreaming:
     @pytest.mark.asyncio
     async def test_response_has_tokens(self):
         """Token counts are tracked in the final response."""
-        client = AsyncMockClient(["FINAL(answer)"])
+        client = AsyncMockClient(
+            [
+                "```repl\nprint('hi')\n```",
+                "FINAL(answer)",
+            ]
+        )
         config = RLMConfig()
         orch = StreamOrchestrator(client, config, "m", "m")
         chunks = [c async for c in orch.run("q", "ctx")]
-        resp = chunks[-1].detail["response"]
+        resp = [c for c in chunks if c.type == "final_answer"][0].detail["response"]
         assert resp.total_input_tokens > 0
         assert resp.total_output_tokens > 0
 
@@ -198,16 +209,18 @@ class TestStreamWithStreaming:
     @pytest.mark.asyncio
     async def test_token_chunks_yielded(self):
         """Streaming client yields individual token chunks."""
-        client = StreamingMockClient(["FINAL(hello world)"])
+        client = StreamingMockClient(
+            [
+                "```repl\nprint('hi')\n```",
+                "FINAL(hello world)",
+            ]
+        )
         config = RLMConfig(max_iterations=5)
         orch = StreamOrchestrator(client, config, "m", "m")
         chunks = [c async for c in orch.run("q", "ctx")]
 
         token_chunks = [c for c in chunks if c.type == "token"]
-        # "FINAL(hello world)" split by spaces → "FINAL(hello", " world)"
         assert len(token_chunks) >= 2
-        combined = "".join(c.content for c in token_chunks)
-        assert combined == "FINAL(hello world)"
 
     @pytest.mark.asyncio
     async def test_multi_iteration_streaming(self):
@@ -236,7 +249,12 @@ class TestWrapperStreamGenerate:
     @pytest.mark.asyncio
     async def test_astream_generate(self):
         """RLMWrapper.astream_generate yields chunks and final response."""
-        client = AsyncMockClient(["FINAL(streamed answer)"])
+        client = AsyncMockClient(
+            [
+                "```repl\nprint('hi')\n```",
+                "FINAL(streamed answer)",
+            ]
+        )
         wrapper = RLMWrapper(client, root_model="m")
         chunks = [c async for c in wrapper.astream_generate("q", "ctx")]
 
