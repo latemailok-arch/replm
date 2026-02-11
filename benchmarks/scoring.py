@@ -43,6 +43,24 @@ def score_comparison(predicted: str, expected: str) -> tuple[bool, float]:
     return correct, 1.0 if correct else 0.0
 
 
+def score_oolong_numeric(predicted: str, expected: str) -> tuple[bool, float]:
+    """OOLONG scoring: score = 0.75^|y - y_hat| for numerical answers.
+
+    Returns (exact_match, graded_score) where graded_score decays
+    exponentially with the absolute difference between predicted and expected.
+    """
+    try:
+        p_val = _extract_number(predicted)
+        e_val = _extract_number(expected)
+    except ValueError:
+        return score_exact_match(predicted, expected)
+
+    diff = abs(e_val - p_val)
+    correct = diff == 0
+    score = 0.75 ** diff
+    return correct, score
+
+
 def _normalize(s: str) -> str:
     return re.sub(r"[^\w\s]", "", s.lower().strip())
 
