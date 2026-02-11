@@ -99,7 +99,7 @@ def _run_config(
     print(f"\n\n{'#' * 60}")
     print(f"  CONFIG: {config_name}")
     print(f"  Root: {config.root_model}  Sub: {config.sub_model}")
-    print(f"  Reasoning: {config.reasoning_effort or 'none'}")
+    print(f"  Reasoning (base only): {config.base_reasoning_effort or 'none'}")
     print(f"{'#' * 60}")
 
     label = config.config_label

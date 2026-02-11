@@ -28,10 +28,10 @@ class BenchmarkConfig:
         default_factory=lambda: os.environ["BASE-URL"],
     )
     root_model: str = field(
-        default_factory=lambda: os.environ.get("ROOT-MODEL", ""),  # noqa: SIM112
+        default_factory=lambda: os.environ.get("GPT5-1", ""),  # noqa: SIM112
     )
     sub_model: str = field(
-        default_factory=lambda: os.environ.get("SUB-MODEL", ""),  # noqa: SIM112
+        default_factory=lambda: os.environ.get("GPT5mini", ""),  # noqa: SIM112
     )
 
     # Reasoning effort for base-mode root model (None = omit parameter).
@@ -101,9 +101,9 @@ def gpt5_config(**overrides: object) -> BenchmarkConfig:
 
 
 def oss120b_config(**overrides: object) -> BenchmarkConfig:
-    """Open-source 120B root + GPT-5-mini sub-calls."""
+    """gpt-oss-120b (root) + GPT-5-mini (sub) — open-source root."""
     defaults = dict(
-        root_model=os.environ.get("ROOT-MODEL-ALT", "oss-120b"),  # noqa: SIM112
+        root_model=os.environ.get("ROOT-MODEL-ALT", "gpt-oss-120b"),  # noqa: SIM112
         sub_model=os.environ.get("SUB-MODEL", "gpt-5-mini"),  # noqa: SIM112
         base_reasoning_effort=None,
         base_context_limit_chars=500_000,

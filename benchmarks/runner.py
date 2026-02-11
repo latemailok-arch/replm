@@ -141,9 +141,9 @@ class BenchmarkRunner:
             temperature=self._config.temperature,
             max_tokens=16384,
         )
-        if self._config.reasoning_effort is not None:
+        if self._config.base_reasoning_effort is not None:
             kwargs["extra_body"] = {
-                "reasoning_effort": self._config.reasoning_effort,
+                "reasoning_effort": self._config.base_reasoning_effort,
             }
         response = self._client.chat.completions.create(**kwargs)
 
