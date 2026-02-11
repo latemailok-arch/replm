@@ -377,8 +377,9 @@ replm uses **prompted RLMs** — it wraps any existing LLM without fine-tuning. 
 - **No fine-tuning.** The paper's fine-tuned RLM-Qwen3-8B made fewer REPL mistakes, used sub-calls more efficiently, and achieved lower inference costs. replm relies on prompting alone, so quality depends heavily on the base model's coding ability and instruction following.
 - **Model-dependent behavior.** The system prompt was originally designed for GPT-5. Different models exhibit different decomposition strategies — some (e.g. Qwen3-Coder) tend to launch excessive sub-calls, while smaller models may struggle with REPL interaction entirely. Use `prompt_variant` to mitigate this.
 - **Cost variance.** While the median RLM run is comparable in cost to vanilla LLM calls, the distribution has a long tail. Complex queries can trigger deep chains of sub-calls, making individual runs significantly more expensive than the average.
-- **Output parsing brittleness.** Distinguishing the final answer from intermediate reasoning can be fragile. Models occasionally output their plan as the final answer, or misuse `FINAL` / `FINAL_VAR` syntax.
+- **Output parsing brittleness.** Distinguishing the final answer from intermediate reasoning can be fragile. Models occasionally output their plan as the final answer, or misuse `FINAL` / `FINAL_VAR` syntax. A built-in safeguard rejects `FINAL` directives before any code has been executed in the REPL, forcing the model to examine the context first.
 - **Latency.** Each REPL iteration requires a full round-trip to the LLM. Sync mode processes sub-calls sequentially — use `agenerate()` with `llm_query_batch` for parallelism.
+- **No tool-call support.** The `LLMClient` protocol handles plain chat completions only — there is no support for LLM tool calls (function calling) or structured outputs. The REPL itself serves as the model's tool: `llm_query`, `llm_query_batch`, and arbitrary Python code replace traditional function calling.
 
 For tasks within the model's native context window, a vanilla LLM call is simpler and faster. RLMs shine when inputs exceed the context window or when quality degrades due to context rot (the paper shows GPT-5 dropping to near 0% on quadratic-complexity tasks at 256K tokens, while RLMs maintain ~43%).
 
@@ -388,7 +389,9 @@ For tasks within the model's native context window, a vanilla LLM call is simple
 - Anthropic / Google adapters (beyond OpenAI-compatible)
 - Structured logging with timing data per event
 - Multi-modal context (images/PDFs as context chunks)
-- Tool use integration (web search, calculator, databases)
+- LLM tool calls / function calling passthrough
+- Custom REPL tools (web search, calculator, database queries)
+- DSPy prompt optimization for smaller models
 
 ## Citations
 
